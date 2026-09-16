@@ -1,214 +1,323 @@
 # Production Predictive Maintenance and Equipment Health Platform
 
-## Project status
+A production-oriented machine learning platform that processes turbofan telemetry,
+predicts Remaining Useful Life (RUL), preserves data and model lineage, and handles
+invalid, delayed, duplicate, and retryable events explicitly.
 
-| Step | Description | Status |
+The project uses the NASA C-MAPSS FD001 dataset to build and verify the complete
+path from trusted historical data to quality-aware streaming inference.
+
+> This is a learning and engineering project built with simulated engine data. It
+> supports maintenance decisions; it is not a certified aviation system and does
+> not autonomously control equipment.
+
+![Phase 5 training and inference flow](docs/media/phase5-rul-training-inference.png)
+
+## Current status
+
+| Phase | Outcome | Status |
 | --- | --- | --- |
-| 1 | Project definition and scope | Completed |
-| 2 | Dataset understanding and reproducible data foundation | Completed |
-| 3 | Production architecture design | Completed |
-| 4 | Repository and local infrastructure | Completed |
-| 5 | Data ingestion, storage, and validation | Completed |
-| 6 | Preprocessing and feature engineering | Completed |
-| 7 | Model training and experiment tracking | In progress: reproducible training complete |
-| 8 | Model registry and promotion | Not started |
-| 9 | Streaming inference and API | In progress: inference worker complete |
-| 10 | Monitoring and automated retraining | Not started |
-| 11 | CI/CD, cloud deployment, and testing | Not started |
+| 1 | Production problem definition and system boundaries | Completed |
+| 2 | Reproducible C-MAPSS data foundation and validation | Completed |
+| 3 | Production architecture and reliability design | Completed |
+| 4 | Durable streaming, event ordering, DLQ, and quality warnings | Completed |
+| 5 | Versioned features, model comparison, inference, and prediction persistence | Completed |
+| 6 | Model packaging, approval gates, experiment tracking, and registry lifecycle | Next |
+| 7 | Alerts, operational APIs, and fleet dashboard | Planned |
+| 8 | Airflow orchestration | Planned |
+| 9 | Monitoring and drift detection | Planned |
+| 10 | CI/CD and cloud deployment | Planned |
+| 11 | Load testing, security review, and final delivery | Planned |
 
-## 1. Project overview
+Phase 5 completed with **141 passing tests**, including PostgreSQL integration tests
+for atomic commit, rollback, duplicate processing, conflicts, and last-valid
+prediction lookup.
 
-Industrial equipment produces sensor readings during operation. Gradual degradation can eventually cause failure, but it is difficult to determine the correct time to perform maintenance.
+## What is implemented
 
-This project will build a production ML system that:
+### Reproducible data foundation
 
-> Processes incoming equipment sensor data, estimates the equipment's remaining useful life, and identifies whether maintenance may be required within the next 30 operating cycles.
+- Downloads and checksum-verifies the NASA C-MAPSS archive.
+- Safely extracts nested archives with path, size, CRC, and member allowlist checks.
+- Parses FD001 train, test, and test-RUL files into typed tables.
+- Applies blocking validation rules and explicit warning handling.
+- Publishes trusted Parquet artifacts and lineage manifests atomically.
+- Quarantines rejected records and failed validation reports.
 
-The system will begin with the NASA C-MAPSS turbofan engine degradation dataset. Historical sensor records will later be replayed as live events to simulate a fleet of operating machines.
+### Durable telemetry ingestion
 
-Dataset: [NASA C-MAPSS Jet Engine Simulated Data](https://data.nasa.gov/dataset/cmapss-jet-engine-simulated-data)
+- FastAPI ingestion endpoint with a strict `telemetry-v1` contract.
+- PostgreSQL or Redpanda-backed event sink.
+- Manual Kafka offset acknowledgement after durable staging.
+- Dead-letter publication for malformed or contract-invalid messages.
+- PostgreSQL-backed `pending_event` storage for restart recovery.
+- Event-time reordering with an allowed-lateness window.
+- Configurable idle flushing and idempotent ordering-window warnings.
 
-## 2. Intended user
+### Feature generation and model training
 
-The intended user is a **maintenance planner or reliability engineer** responsible for a fleet of equipment.
+- Shared `features-v1` contract used by training and inference.
+- Deterministic feature order: `cycle`, followed by `sensor_1` through `sensor_21`.
+- Rejection of missing, null, NaN, and infinite feature values.
+- RUL target: `maximum engine cycle - current cycle`.
+- Reproducible 80/20 split by complete engine identity.
+- Comparison of Linear Regression, Adaptive Lasso, XGBoost, and LightGBM.
+- Evaluation with MAE, RMSE, and the asymmetric NASA score.
+- Immutable publication of the selected experiment and its evaluation evidence.
 
-The system should help the user answer:
+### Quality-aware inference
 
-- Which equipment is currently healthy?
-- Which equipment is deteriorating?
-- Which equipment requires attention soon?
-- Approximately how long can each unit continue operating?
-- Which sensor signals contributed to a warning?
+- Model-independent predictor interface.
+- Candidate, approved, and retired artifact lifecycle states.
+- Approved-only model loading with feature-version compatibility checks.
+- Explicit prediction states:
+  - `AVAILABLE`: valid input and an RUL estimate was produced.
+  - `DEGRADED`: an RUL estimate was produced with known non-fatal quality issues.
+  - `WITHHELD`: unsafe input was intentionally not scored.
+- Retryable model execution failures remain separate from data-quality decisions.
+- Telemetry and prediction persistence in one PostgreSQL transaction.
+- Idempotency through `(event_id, model_release)` uniqueness.
+- Last-valid prediction lookup for future dashboard use.
 
-## 3. System inputs
+## Model results
 
-Each incoming record will describe one equipment unit at one operating cycle.
+The four candidates used the same engine-level validation split and feature
+contract.
+
+| Rank | Model | Validation MAE | Validation RMSE | NASA score |
+| ---: | --- | ---: | ---: | ---: |
+| 1 | LightGBM | 23.419 | 30.821 | 270,305.533 |
+| 2 | XGBoost | 23.638 | 31.171 | 313,218.453 |
+| 3 | Linear Regression | 24.454 | 31.231 | 302,723.135 |
+| 4 | Adaptive Lasso | 24.478 | 31.254 | 302,582.511 |
+
+After selection, LightGBM was retrained on all 100 FD001 training engines and
+evaluated once on the official 100-engine test set:
+
+| Metric | Result |
+| --- | ---: |
+| MAE | 19.447 cycles |
+| RMSE | 26.820 cycles |
+| NASA score | 8,065.366 |
+
+LightGBM is the **experiment winner**, not an approved production model. The
+streaming inference path will load a model only when an approved manifest is
+explicitly configured.
+
+## Runtime contracts
+
+### Telemetry input
+
+Each event contains:
 
 ```text
-equipment_id
-cycle_number
-operating_conditions
-sensor_1
-sensor_2
-...
-sensor_21
+event_id
+engine_id
+cycle
 event_timestamp
+schema_version
+source_id
+measurements
 ```
 
-In C-MAPSS:
+The measurements object may be accepted and stored with incomplete sensors, but
+`features-v1` requires all 21 sensor values before producing an RUL estimate.
+Missing required features result in a traceable `WITHHELD` prediction.
 
-- Each engine represents one equipment unit.
-- Each row represents one operating cycle.
-- The columns contain operating settings and sensor measurements.
-- Training engines are observed until failure, allowing RUL targets to be calculated.
-
-## 4. System outputs
-
-For each equipment unit, the system will generate an output similar to:
+### Prediction output
 
 ```json
 {
-  "equipment_id": 47,
-  "estimated_rul": 24,
-  "failure_within_30_cycles": true,
-  "failure_probability": 0.82,
-  "health_status": "critical",
-  "important_sensors": ["sensor_11", "sensor_4", "sensor_15"],
-  "model_version": "rul-model-v3",
-  "prediction_timestamp": "2026-08-30T10:30:00Z"
+  "event_id": "engine-17-cycle-82",
+  "engine_id": 17,
+  "cycle": 82,
+  "estimated_rul": 26.0,
+  "status": "degraded",
+  "data_quality_status": "degraded",
+  "quality_flags": ["cycle_gap"],
+  "model_release": "rul-model-v1",
+  "feature_version": "features-v1",
+  "generated_at": "2026-09-16T12:00:00Z"
 }
 ```
 
-## 5. Machine learning tasks
+`estimated_rul` is an estimate of remaining operating cycles, not a guaranteed
+failure date.
 
-### 5.1 Remaining useful life regression
+## Reliability behavior
 
-The primary ML task is to predict the number of operating cycles remaining before failure.
-
-```text
-Predicted RUL = 24 cycles
-```
-
-### 5.2 Failure-risk classification
-
-The second task is to estimate whether the equipment is likely to fail within the next 30 operating cycles.
-
-```text
-Failure within 30 cycles = Yes
-Probability = 82%
-```
-
-RUL is the main prediction target. Failure classification converts that prediction into an operationally useful risk signal.
-
-## 6. Decision policy
-
-The system will recommend one of three actions:
-
-| Status | Meaning | Suggested action |
-| --- | --- | --- |
-| Healthy | No immediate failure indication | Continue normal monitoring |
-| Warning | Degradation is developing | Increase inspection frequency |
-| Critical | High risk within 30 cycles | Schedule a maintenance inspection |
-
-The system will only recommend an action. A qualified human remains responsible for the final maintenance decision.
-
-## 7. Success criteria
-
-The project will be evaluated across model performance and production-system reliability.
-
-### 7.1 RUL prediction
-
-- Mean Absolute Error (MAE)
-- Root Mean Squared Error (RMSE)
-- NASA asymmetric scoring metric
-
-The asymmetric metric is important because predicting failure too late is more costly than producing a slightly early warning.
-
-### 7.2 Failure detection
-
-- Recall
-- Precision
-- F1 score
-- False-alert rate
-- Missed-failure rate
-
-Recall will be particularly important because a missed failure can be more costly than an early maintenance warning.
-
-### 7.3 Production system
-
-- Prediction latency
-- Data freshness
-- Service availability
-- Invalid sensor-event rate
-- Pipeline failure rate
-- Model and data drift
-
-Exact acceptance thresholds will be established after the baseline model and load tests are available.
-
-## 8. Initial scope
-
-The first complete version will:
-
-- Start with the simpler C-MAPSS `FD001` subset.
-- Train a simple baseline model.
-- Train a tree-based production candidate such as LightGBM or XGBoost.
-- Replay historical sensor records as streaming events.
-- Generate RUL and 30-cycle failure-risk predictions.
-- Provide predictions through an API.
-- Store sensor data, features, predictions, and model metadata.
-- Monitor data quality, drift, prediction quality, and service health.
-- Implement the ten production ML components described in the reference MLOps article.
-
-After the full pipeline works with `FD001`, it will be tested against the more difficult `FD002`, `FD003`, and `FD004` subsets.
-
-## 9. Production ML components
-
-| Component | Planned implementation |
+| Situation | System response |
 | --- | --- |
-| Data storage | Raw sensor events, processed data, features, predictions, and outcomes |
-| Data processing | Streaming sensor replay and offline batch processing |
-| Preprocessing and feature engineering | Validated, reusable transformations for training and inference |
-| Training pipeline | Time-aware training, tuning, evaluation, and registration |
-| Inference pipeline | Generate predictions whenever new sensor data arrives |
-| Feature store | Historical training features and current serving features |
-| Experiment tracking | Record datasets, parameters, metrics, and model artifacts |
-| Model registry | Manage candidate, champion, and previous model versions |
-| Monitoring | Track drift, prediction error, latency, freshness, and failures |
-| CI/CD | Test, package, deploy, and safely roll back system changes |
+| Invalid telemetry envelope | Publish to the dead-letter topic and retain error context |
+| Out-of-order valid event | Store durably and reorder by engine cycle |
+| Missing cycle | Continue with `DEGRADED` quality and record a warning |
+| Missing or invalid required feature | Persist a `WITHHELD` prediction without calling the model |
+| Model execution failure | Roll back the processing transaction and retry later |
+| Exact event or prediction retry | Return `DUPLICATE` without creating another row |
+| Same identity with changed content | Return `CONFLICT` and preserve the original row |
+| New event cannot be scored | Allow explicit retrieval of the older last-valid prediction |
 
-## 10. Initial technical approach
+## Technology stack
 
-The initial modelling strategy will include:
+| Area | Technology |
+| --- | --- |
+| Language and packaging | Python 3.12, `uv`, Hatchling |
+| API and contracts | FastAPI, Pydantic |
+| Data processing | Polars, Parquet |
+| Machine learning | scikit-learn, XGBoost, LightGBM |
+| Streaming | Redpanda / Kafka-compatible client |
+| Operational storage | PostgreSQL, SQLAlchemy, Psycopg |
+| Schema migrations | Alembic |
+| Testing and quality | Pytest, Ruff, strict Mypy |
+| Local infrastructure | Docker Compose |
 
-1. A simple age-based or linear baseline.
-2. A LightGBM or XGBoost model using rolling sensor features.
-3. An optional temporal challenger such as an LSTM or temporal convolutional network.
+## Repository structure
 
-The challenger will only replace the simpler production model if it provides a meaningful improvement while meeting latency, stability, and maintainability requirements.
+```text
+src/predictive_maintenance/
+├── api/            # Telemetry HTTP API
+├── core/           # Runtime settings
+├── data/           # Download, extraction, validation, and publication
+├── features/       # Versioned feature contracts and builder
+├── inference/      # Artifact loading, predictor, worker, and transaction processor
+├── storage/        # Telemetry and prediction persistence
+├── streaming/      # Producer, consumer, DLQ, and event-time reorder logic
+└── training/       # Data split, models, evaluation, and comparison pipeline
 
-Potential features include:
+infrastructure/postgres/migrations/  # Operational database schema
+tests/unit/                         # Isolated behavior tests
+tests/integration/                  # PostgreSQL and pipeline integration tests
+docs/phases/                        # Completed phase decisions and evidence
+```
 
-- Current sensor measurements
-- Rolling means
-- Rolling standard deviations
-- Sensor trends and slopes
-- Differences from initial operating conditions
-- Equipment age
-- Operating-condition variables
+Local datasets, generated model binaries, environment files, and personal learning
+notes are intentionally excluded from Git.
 
-## 11. Current scope exclusions
+## Local setup
 
-The initial version will not:
+### Requirements
 
-- Automatically shut down equipment.
-- Replace the judgement of a maintenance professional.
-- Claim that simulated turbofan data represents every industrial machine.
-- Include an LLM or maintenance chatbot.
-- Start with Kubernetes before the core system works.
-- Use a complex deep-learning model before establishing a reliable baseline.
+- Python 3.12
+- [`uv`](https://docs.astral.sh/uv/)
+- Docker with Docker Compose
 
-## 12. Development principle
+### Install dependencies
 
-The project will be developed one completed step at a time. Each phase will be understood, implemented, tested, and documented before work begins on the next phase.
+```bash
+uv sync
+cp .env.example .env
+```
 
-The next phase is **Step 4: establish the local platform foundation and repository boundaries needed to implement the approved architecture safely**.
+### Start infrastructure and apply migrations
+
+```bash
+docker compose up -d postgres redpanda
+.venv/bin/alembic upgrade head
+.venv/bin/alembic current
+```
+
+Expected database revision:
+
+```text
+0004_prediction_lineage (head)
+```
+
+### Prepare FD001
+
+```bash
+.venv/bin/pm-platform data download
+.venv/bin/pm-platform data prepare
+```
+
+The trusted publication is written under `data/interim/cmapss/v1/fd001/` and is
+excluded from Git.
+
+### Train and compare the four models
+
+Run names are immutable, so use a new name for each experiment:
+
+```bash
+.venv/bin/pm-platform model train-compare \
+  --run-name fd001-four-model-v2
+```
+
+Generated model artifacts are stored locally under `artifacts/training-runs/` and
+are excluded from Git.
+
+### Run the telemetry API
+
+```bash
+.venv/bin/uvicorn predictive_maintenance.api.app:app --reload
+```
+
+Useful endpoints:
+
+- `GET /health`
+- `GET /ready`
+- `POST /v1/telemetry`
+
+### Run the stream consumer
+
+Without an approved model manifest, the consumer continues the telemetry reliability
+path without model inference:
+
+```bash
+.venv/bin/pm-platform stream worker
+```
+
+After Phase 6 packages and approves a serving release:
+
+```bash
+export PM_APPROVED_MODEL_MANIFEST_PATH=artifacts/<approved-release>/manifest.json
+.venv/bin/pm-platform stream worker
+```
+
+Candidate and retired manifests are rejected by the serving gate.
+
+## Verification
+
+```bash
+.venv/bin/pytest -q
+.venv/bin/ruff check src tests infrastructure/postgres/migrations scripts
+.venv/bin/mypy src
+```
+
+Phase 5 completion evidence:
+
+```text
+141 tests passed
+Ruff passed
+Strict Mypy passed for 37 source files
+PostgreSQL migration: 0004_prediction_lineage (head)
+```
+
+## Documentation
+
+- [Phase 1: Production problem definition](docs/phases/01-production-problem-definition.md)
+- [Phase 2: Reproducible data foundation](docs/phases/02-data-foundation.md)
+- [Phase 3: Production architecture](docs/phases/03-production-architecture.md)
+- [Phase 4: Streaming reliability and data quality](docs/phases/04-streaming-reliability-and-data-quality.md)
+- [Phase 5: Feature generation, RUL modelling, and inference](docs/phases/05-feature-generation-model-training-and-inference.md)
+- [Delivery roadmap](docs/project-roadmap.md)
+
+## Current boundaries
+
+The repository does not yet include:
+
+- An approved production model release or registry-backed champion.
+- Failure-within-30-cycles classification.
+- Alert creation and maintenance decision workflows.
+- Prediction-history and fleet-state APIs.
+- A fleet dashboard.
+- Airflow orchestration.
+- Production monitoring and drift detection.
+- CI/CD or cloud deployment.
+
+These are shown as planned work rather than current system outputs.
+
+## Next phase
+
+Phase 6 will package the selected experiment against the serving contract, define
+stronger evaluation and human approval gates, and introduce experiment tracking and
+model-registry lifecycle support. Model promotion will remain explicit and
+auditable.
