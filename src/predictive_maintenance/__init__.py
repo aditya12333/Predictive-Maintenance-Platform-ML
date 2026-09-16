@@ -1,0 +1,1 @@
+"""Production predictive-maintenance platform."""

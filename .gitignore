@@ -1,0 +1,59 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing / coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Environment variables
+.env
+
+# Local datasets
+data/raw/*
+data/interim/*
+data/processed/*
+data/quarantine/*
+
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!data/quarantine/.gitkeep
+
+# Generated model artifacts
+artifacts/*
+!artifacts/README.md
+
+# Jupyter / IDE
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local learning and publishing notes
+commands.md
+learning_notes/
+docs/daily-progress.md
+docs/learning-checkpoints.md
+docs/linkedin/

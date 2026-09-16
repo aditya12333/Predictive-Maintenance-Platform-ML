@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "predictive-maintenance-platform"
+version = "0.1.0"
+description = "Production predictive-maintenance and equipment-health platform"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "certifi>=2026.7.22",
+    "confluent-kafka>=2.8,<3",
+    "fastapi>=0.115,<1",
+    "joblib>=1.4,<2",
+    "lightgbm>=4,<5",
+    "numpy>=2,<2.4",
+    "polars>=1.32,<2",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.7,<3",
+    "scikit-learn>=1.6,<2",
+    "sqlalchemy>=2.0,<3",
+    "typer>=0.15,<1",
+    "xgboost>=3,<4",
+]
+
+[project.scripts]
+pm-platform = "predictive_maintenance.cli:app"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14,<2",
+    "pytest>=8.3,<9",
+    "pytest-cov>=6,<7",
+    "ruff>=0.9,<1",
+    "alembic>=1.14,<2",
+    "httpx>=0.28,<1",
+    "pillow>=11,<13",
+    "psycopg[binary]>=3.2,<4",
+    "uvicorn[standard]>=0.34,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/predictive_maintenance"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["predictive_maintenance"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["joblib", "lightgbm.*", "sklearn.*", "xgboost.*"]
+ignore_missing_imports = true
