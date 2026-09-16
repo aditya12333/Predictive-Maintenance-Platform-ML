@@ -29,7 +29,7 @@ path from trusted historical data to quality-aware streaming inference.
 | 10 | CI/CD and cloud deployment | Planned |
 | 11 | Load testing, security review, and final delivery | Planned |
 
-Phase 5 completed with **143 passing tests**, including PostgreSQL integration tests
+Phase 5 completed with **141 passing tests**, including PostgreSQL integration tests
 for atomic commit, rollback, duplicate processing, conflicts, and last-valid
 prediction lookup.
 
@@ -63,8 +63,6 @@ prediction lookup.
 - Reproducible 80/20 split by complete engine identity.
 - Comparison of Linear Regression, Adaptive Lasso, XGBoost, and LightGBM.
 - Regression evaluation with MAE, RMSE, and the asymmetric NASA score.
-- Derived 28-cycle warning evaluation with precision, recall, F1, false-alert
-  rate, missed-failure rate, and confusion-matrix counts.
 - Immutable publication of the selected experiment and its evaluation evidence.
 
 ### Quality-aware inference
@@ -105,33 +103,6 @@ evaluated once on the official 100-engine test set:
 LightGBM is the **experiment winner**, not an approved production model. The
 streaming inference path will load a model only when an approved manifest is
 explicitly configured.
-
-The maintenance-warning assessment applies the following rule to the regression
-output:
-
-```text
-failure warning = RUL <= 28 operating cycles
-```
-
-C-MAPSS contains operating cycles rather than calendar dates. For the project
-simulation only, one operating cycle represents one simulated day, so this is the
-28-day planning horizon. This assumption does not mean one real engine cycle always
-equals one calendar day.
-
-### Validation warning results
-
-| Model | Precision | Recall | F1 | False-alert rate | Missed-failure rate |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| LightGBM | 92.41% | 83.97% | 87.99% | 1.15% | 16.03% |
-| XGBoost | 92.44% | 82.24% | 87.04% | 1.12% | 17.76% |
-| Linear Regression | 91.09% | 63.45% | 74.80% | 1.03% | 36.55% |
-| Adaptive Lasso | 90.86% | 63.45% | 74.72% | 1.06% | 36.55% |
-
-On the official test set, LightGBM produced 17 true warnings, 1 false alert, 75
-true negatives, and 7 missed warnings. This gives **94.44% precision, 70.83%
-recall, 80.95% F1, a 1.32% false-alert rate, and a 29.17% missed-failure rate**.
-The original 90% imminent-failure recall target is therefore not met, which is one
-reason the experiment winner cannot yet be promoted.
 
 ## Runtime contracts
 
@@ -314,7 +285,7 @@ Candidate and retired manifests are rejected by the serving gate.
 Phase 5 completion evidence:
 
 ```text
-143 tests passed
+141 tests passed
 Ruff passed
 Strict Mypy passed for 37 source files
 PostgreSQL migration: 0004_prediction_lineage (head)
@@ -334,8 +305,7 @@ PostgreSQL migration: 0004_prediction_lineage (head)
 The repository does not yet include:
 
 - An approved production model release or registry-backed champion.
-- Runtime warning and alert generation from the evaluated 28-cycle decision rule.
-- A calibrated failure probability or separately trained failure-risk classifier.
+- Failure-risk classification, alert thresholds, and classification metrics.
 - Alert creation and maintenance decision workflows.
 - Prediction-history and fleet-state APIs.
 - A fleet dashboard.
@@ -347,7 +317,7 @@ These are shown as planned work rather than current system outputs.
 
 ## Next phase
 
-Phase 6 will package the selected experiment as a candidate, enforce the evaluation
-and human approval gates, and introduce experiment tracking and model-registry
-lifecycle support. The current candidate must improve its 28-cycle warning recall
-before it can be approved. Model promotion will remain explicit and auditable.
+Phase 6 will package the selected experiment as a candidate, enforce regression
+evaluation and human approval gates, and introduce experiment tracking and
+model-registry lifecycle support. Model promotion will remain explicit and
+auditable.

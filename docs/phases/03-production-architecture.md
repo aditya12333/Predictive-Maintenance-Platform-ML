@@ -200,7 +200,7 @@ The training pipeline consumes trusted versioned data and performs:
 
 Training and inference import the same versioned feature-transformation package. Inference loads preprocessing parameters fitted during training; it never refits a scaler or imputer on live telemetry.
 
-A candidate cannot replace the champion based only on lower MAE. Promotion gates include imminent-failure recall, late-warning behaviour, NASA score, error metrics, false alerts, stability, latency and compatibility. Human approval is required and audited.
+A candidate cannot replace the champion based only on lower MAE. The current regression promotion gates include RMSE, NASA score, error stability, latency and compatibility. Human approval is required and audited. Classification and alert-policy gates will be defined later if that scope is added.
 
 The registry retains immutable candidate, champion and previous versions. Rollback restores the exact prior release rather than rebuilding it.
 
@@ -238,7 +238,7 @@ Monitoring is separated into:
 - Streaming health: arrival rate, processing rate, consumer lag and oldest-event age.
 - Data health: missingness, schema failures, conflicts, lateness and staleness.
 - Model health: prediction distribution, drift, performance when outcomes arrive and inference duration.
-- Business health: warning lead time, missed failures, false alerts and maintenance outcomes.
+- Business health: RUL error, prediction stability and maintenance outcomes.
 
 A healthy API does not imply healthy data or a healthy model. Dashboard states must distinguish `CURRENT`, `STALE`, `DEGRADED`, `WITHHELD` and `UNAVAILABLE` rather than silently substituting a healthy state.
 

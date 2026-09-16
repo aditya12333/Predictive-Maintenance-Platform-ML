@@ -23,9 +23,9 @@ Completed:
 
 Next:
 
-- Phase 6: package the serving candidate, enforce promotion gates, improve the
-  below-target 28-cycle recall, and introduce experiment and model-registry
-  lifecycle support. Approval remains blocked until the gates pass.
+- Phase 6: package the serving candidate, enforce regression promotion gates, and
+  introduce experiment and model-registry lifecycle support. Approval remains
+  explicit and blocked until the gates pass.
 
 The exact daily checkpoint is maintained in
 `docs/daily-progress.md`.
@@ -46,9 +46,7 @@ Estimated duration: 5–7 focused days.
   candidate release.
 - Add experiment tracking and model registry integration.
 - Compare future candidates against the approved champion.
-- Track MAE, 28-cycle warning performance, latency, and resource usage.
-- Improve the current 70.83% official-test warning recall and require at least 90%
-  before production approval.
+- Track MAE, RMSE, NASA score, latency, and resource usage.
 - Version models, scalers, feature definitions, and evaluation reports.
 - Define approval and rollback rules.
 

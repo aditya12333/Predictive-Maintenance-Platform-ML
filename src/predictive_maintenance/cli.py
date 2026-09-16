@@ -229,34 +229,12 @@ def train_model_comparison(
             f"{evaluation.nasa_score:>16.3f}"
         )
 
-    typer.echo("28-cycle warning metrics:")
-    typer.echo(
-        f"{'Model':<22}{'Precision':>12}{'Recall':>12}{'F1':>12}"
-        f"{'False alert':>14}{'Missed':>12}"
-    )
-    for evaluation in report.validation_ranking:
-        warning = evaluation.failure_horizon
-        typer.echo(
-            f"{evaluation.model_name:<22}"
-            f"{warning.precision:>12.3f}"
-            f"{warning.recall:>12.3f}"
-            f"{warning.f1_score:>12.3f}"
-            f"{warning.false_alert_rate:>14.3f}"
-            f"{warning.missed_failure_rate:>12.3f}"
-        )
-
     test_result = report.official_test_evaluation
     typer.echo(f"Selected model: {report.selected_model_name}")
     typer.echo("Official test result (selected model only):")
     typer.echo(f"- MAE: {test_result.mae_cycles:.3f} cycles")
     typer.echo(f"- RMSE: {test_result.rmse_cycles:.3f} cycles")
     typer.echo(f"- NASA score: {test_result.nasa_score:.3f}")
-    typer.echo("- 28-cycle warning metrics:")
-    typer.echo(f"  - Precision: {test_result.failure_horizon.precision:.3f}")
-    typer.echo(f"  - Recall: {test_result.failure_horizon.recall:.3f}")
-    typer.echo(f"  - F1: {test_result.failure_horizon.f1_score:.3f}")
-    typer.echo(f"  - False-alert rate: {test_result.failure_horizon.false_alert_rate:.3f}")
-    typer.echo(f"  - Missed-failure rate: {test_result.failure_horizon.missed_failure_rate:.3f}")
     typer.echo(f"Saved run: {(output_root / resolved_run_name).resolve()}")
 
 

@@ -18,7 +18,6 @@ Build a cloud-based predictive-maintenance platform that:
 
 - Detects abnormal engine behaviour.
 - Estimates remaining useful life in operating cycles.
-- Estimates failure risk within configurable cycle horizons.
 - Prioritises engines requiring inspection.
 - Explains the evidence behind warnings.
 - Identifies unreliable or stale sensor data.
@@ -96,9 +95,8 @@ In descending order:
 
 1. Avoid missed imminent failures.
 2. Provide sufficient inspection lead time.
-3. Keep false alerts operationally manageable.
-4. Avoid unnecessary early maintenance.
-5. Reduce unplanned downtime and maintenance cost.
+3. Avoid unnecessary early maintenance.
+4. Reduce unplanned downtime and maintenance cost.
 6. Improve fleet availability and user confidence.
 
 Late warnings will initially be penalised more heavily than equivalently early warnings.
@@ -146,9 +144,6 @@ These are provisional targets. Baseline experiments may revise them, but any rev
 - No future data or target leakage.
 - RUL MAE improves by at least 15% over an age-only baseline.
 - The NASA asymmetric score improves over all simpler baselines.
-- Recall for failures occurring within the 28-cycle planning horizon reaches at
-  least 90%. In the project simulation, one operating cycle represents one
-  simulated day; C-MAPSS itself does not contain calendar-day durations.
 - Late-warning performance is reported separately from early-warning error.
 - Prediction stability is measured across consecutive cycles.
 
@@ -157,7 +152,6 @@ These are provisional targets. Baseline experiments may revise them, but any rev
 - High-risk engines are presented with actionable evidence.
 - Confirmed high-risk cases receive useful warning lead time.
 - Repeated predictions for one degradation episode do not create duplicate alerts.
-- False alerts are measured per engine and operating period.
 - Maintenance outcomes can be linked to the predictions and alerts that preceded them.
 
 ### Data reliability
