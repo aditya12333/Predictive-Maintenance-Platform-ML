@@ -25,7 +25,11 @@ from predictive_maintenance.training.data import (
     load_fd001_training_data,
     split_by_engine,
 )
-from predictive_maintenance.training.evaluate import ModelEvaluation, evaluate_predictions
+from predictive_maintenance.training.evaluate import (
+    FAILURE_HORIZON_CYCLES,
+    ModelEvaluation,
+    evaluate_predictions,
+)
 from predictive_maintenance.training.models import RULRegressor, create_candidate_models
 
 RUN_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
@@ -47,6 +51,10 @@ class TrainingRunReport:
     feature_names: tuple[str, ...]
     target_definition: str
     prediction_postprocessing: str
+    failure_horizon_cycles: int
+    simulation_cycle_duration_days: int
+    failure_horizon_days: int
+    failure_warning_definition: str
     random_seed: int
     validation_fraction: float
     training_engine_ids: tuple[int, ...]
@@ -124,6 +132,10 @@ def train_and_compare(
         feature_names=FEATURE_NAMES,
         target_definition="max_cycle_for_engine - current_cycle",
         prediction_postprocessing="max(0, predicted_rul)",
+        failure_horizon_cycles=FAILURE_HORIZON_CYCLES,
+        simulation_cycle_duration_days=1,
+        failure_horizon_days=FAILURE_HORIZON_CYCLES,
+        failure_warning_definition="rul_cycles <= failure_horizon_cycles",
         random_seed=random_seed,
         validation_fraction=validation_fraction,
         training_engine_ids=tuple(sorted(training_rows["engine_id"].unique().to_list())),

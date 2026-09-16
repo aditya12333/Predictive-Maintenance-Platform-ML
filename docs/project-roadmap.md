@@ -23,8 +23,9 @@ Completed:
 
 Next:
 
-- Phase 6: package and approve a serving candidate, strengthen promotion gates, and
-  introduce experiment and model-registry lifecycle support.
+- Phase 6: package the serving candidate, enforce promotion gates, improve the
+  below-target 28-cycle recall, and introduce experiment and model-registry
+  lifecycle support. Approval remains blocked until the gates pass.
 
 The exact daily checkpoint is maintained in
 `docs/daily-progress.md`.
@@ -41,10 +42,13 @@ The Phase 5 documentation is available in
 
 Estimated duration: 5–7 focused days.
 
-- Package the Phase 5 experiment winner against the serving artifact contract.
+- Package the Phase 5 experiment winner against the serving artifact contract as a
+  candidate release.
 - Add experiment tracking and model registry integration.
 - Compare future candidates against the approved champion.
-- Track MAE, early-warning performance, latency, and resource usage.
+- Track MAE, 28-cycle warning performance, latency, and resource usage.
+- Improve the current 70.83% official-test warning recall and require at least 90%
+  before production approval.
 - Version models, scalers, feature definitions, and evaluation reports.
 - Define approval and rollback rules.
 

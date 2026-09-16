@@ -122,6 +122,10 @@ def test_training_run_ranks_models_and_publishes_selected_model(
         "linear_regression",
     ]
     assert report.official_test_evaluation.mae_cycles == 0.0
+    assert report.failure_horizon_cycles == 28
+    assert report.simulation_cycle_duration_days == 1
+    assert report.failure_horizon_days == 28
+    assert report.official_test_evaluation.failure_horizon.recall == 1.0
     assert report.feature_names == FEATURE_NAMES
     assert saved_report["selected_model_name"] == "lightgbm"
     assert (run_directory / "selected-model.joblib").is_file()

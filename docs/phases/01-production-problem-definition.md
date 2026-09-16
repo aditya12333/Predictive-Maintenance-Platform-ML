@@ -146,7 +146,9 @@ These are provisional targets. Baseline experiments may revise them, but any rev
 - No future data or target leakage.
 - RUL MAE improves by at least 15% over an age-only baseline.
 - The NASA asymmetric score improves over all simpler baselines.
-- Recall for failures occurring within 20 cycles reaches at least 90%.
+- Recall for failures occurring within the 28-cycle planning horizon reaches at
+  least 90%. In the project simulation, one operating cycle represents one
+  simulated day; C-MAPSS itself does not contain calendar-day durations.
 - Late-warning performance is reported separately from early-warning error.
 - Prediction stability is measured across consecutive cycles.
 

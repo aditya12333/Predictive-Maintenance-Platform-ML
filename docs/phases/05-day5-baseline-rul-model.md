@@ -2,7 +2,8 @@
 
 **Status:** Completed<br>
 **Completion date:** 2026-09-15<br>
-**Training run:** `fd001-four-model-v1`<br>
+**Warning-metric update:** 2026-09-16<br>
+**Training run:** `fd001-four-model-28cycle-v1`<br>
 **Selected model:** LightGBM<br>
 **Lifecycle state:** Experiment winner; not approved for production serving
 
@@ -121,6 +122,12 @@ Every candidate is evaluated using the same shared function.
 - **RMSE:** gives more weight to large RUL errors.
 - **NASA score:** applies an asymmetric exponential penalty that penalizes
   overestimated RUL more heavily because it can delay maintenance.
+- **Precision, recall, and F1:** measure the warning produced by applying the
+  28-cycle planning horizon to actual and predicted RUL.
+- **False-alert rate:** `FP / (FP + TN)`, the share of non-imminent rows incorrectly
+  warned.
+- **Missed-failure rate:** `FN / (TP + FN)`, the share of imminent rows for which no
+  warning was produced.
 
 For `error = predicted RUL - actual RUL`:
 
@@ -129,8 +136,22 @@ error < 0:  exp(-error / 13) - 1
 error >= 0: exp( error / 10) - 1
 ```
 
-Lower values are better for all three metrics. MAE and RMSE use scikit-learn. The
-NASA C-MAPSS score is implemented locally because it is not a scikit-learn metric.
+Lower values are better for the three regression metrics. Higher precision, recall,
+and F1 are better; lower false-alert and missed-failure rates are better. MAE, RMSE,
+precision, recall, F1, and the confusion matrix use scikit-learn. The NASA C-MAPSS
+score is implemented locally because it is not a scikit-learn metric.
+
+The warning is derived from the regression prediction rather than trained as a
+separate classifier:
+
+```text
+actual warning    = actual RUL <= 28 cycles
+predicted warning = predicted RUL <= 28 cycles
+```
+
+C-MAPSS records operating cycles, not calendar dates. For this project's replay
+simulation, one cycle represents one simulated day. Therefore 28 cycles represents
+the requested 28-day planning horizon only within the simulation.
 
 ## Validation results
 
@@ -140,6 +161,15 @@ NASA C-MAPSS score is implemented locally because it is not a scikit-learn metri
 | 2 | XGBoost | 23.638 | 31.171 | 313,218.453 |
 | 3 | Linear Regression | 24.454 | 31.231 | 302,723.135 |
 | 4 | Adaptive Lasso | 24.478 | 31.254 | 302,582.511 |
+
+The corresponding 28-cycle warning results are:
+
+| Model | Precision | Recall | F1 | False-alert rate | Missed-failure rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| LightGBM | 92.41% | 83.97% | 87.99% | 1.15% | 16.03% |
+| XGBoost | 92.44% | 82.24% | 87.04% | 1.12% | 17.76% |
+| Linear Regression | 91.09% | 63.45% | 74.80% | 1.03% | 36.55% |
+| Adaptive Lasso | 90.86% | 63.45% | 74.72% | 1.06% | 36.55% |
 
 LightGBM was selected because it achieved the lowest validation MAE. It also
 achieved the lowest validation RMSE and NASA score.
@@ -168,6 +198,17 @@ each of the 100 official FD001 test engines. Each row was paired with NASA's
 | MAE | 19.447 cycles |
 | RMSE | 26.820 cycles |
 | NASA score | 8,065.366 |
+| Precision | 94.44% |
+| Recall | 70.83% |
+| F1 | 80.95% |
+| False-alert rate | 1.32% |
+| Missed-failure rate | 29.17% |
+
+The official warning confusion matrix contains 17 true positives, 1 false positive,
+75 true negatives, and 7 false negatives. The 70.83% recall does not meet the
+original 90% imminent-failure recall target. LightGBM remains the best experiment
+candidate among these four models, but this result blocks production approval until
+the model or feature approach improves and is evaluated again.
 
 Validation and official-test NASA scores are not directly comparable. Validation
 contains 4,070 cycle-level predictions, while the official test contains one final
@@ -182,7 +223,7 @@ must not be used to choose model parameters or select a different candidate.
 The immutable run is stored under:
 
 ```text
-artifacts/training-runs/fd001-four-model-v1/
+artifacts/training-runs/fd001-four-model-28cycle-v1/
 ```
 
 It contains:
@@ -213,7 +254,7 @@ View a saved report with:
 
 ```bash
 .venv/bin/python -m json.tool \
-  artifacts/training-runs/fd001-four-model-v1/evaluation.json
+  artifacts/training-runs/fd001-four-model-28cycle-v1/evaluation.json
 ```
 
 Reusing an existing run name fails instead of overwriting its evidence.
@@ -238,10 +279,9 @@ Reusing an existing run name fails instead of overwriting its evidence.
 - Only the validation-selected model was evaluated on the official test set.
 - The report and selected model were atomically published to an immutable run
   directory.
-- Pytest passed 97 tests; five PostgreSQL-dependent tests were skipped because the
-  database was unavailable.
-- Ruff passed for the changed source and test files.
-- Strict Mypy passed for 34 source files.
+- Pytest passed all 143 tests, including the PostgreSQL integration tests.
+- Ruff passed for the complete source and test suite.
+- Strict Mypy passed for 37 source files.
 
 ## Phase completion
 

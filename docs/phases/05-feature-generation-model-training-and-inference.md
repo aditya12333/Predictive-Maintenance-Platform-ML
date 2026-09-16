@@ -4,7 +4,7 @@
 **Project:** AeroReliability Predictive Maintenance Platform<br>
 **Dataset:** NASA C-MAPSS FD001<br>
 **Feature contract:** `features-v1`<br>
-**Training run:** `fd001-four-model-v1`<br>
+**Training run:** `fd001-four-model-28cycle-v1`<br>
 **Completion date:** 2026-09-16<br>
 **Serving state:** No model has been approved for production serving
 
@@ -169,12 +169,21 @@ winner.
 ## 7. Evaluation policy and measured results
 
 Every candidate is measured with scikit-learn MAE and RMSE plus the NASA asymmetric
-score.
+score. The predicted RUL is also converted into a maintenance-warning decision at
+the 28-cycle horizon and evaluated with scikit-learn classification metrics.
 
 - **MAE** gives the average absolute error in cycles.
 - **RMSE** penalises larger errors more strongly.
 - **NASA score** penalises late predictions more heavily because overestimating RUL
   can delay inspection.
+- **Precision, recall, and F1** assess the derived maintenance warning.
+- **False-alert rate** is `FP / (FP + TN)`.
+- **Missed-failure rate** is `FN / (TP + FN)` and equals `1 - recall` when positive
+  cases are present.
+
+The warning rule is `RUL <= 28 operating cycles`. C-MAPSS does not contain calendar
+durations. The replay simulation explicitly treats one cycle as one simulated day,
+so this rule represents the project's 28-day planning horizon within the simulation.
 
 The declared ranking policy is:
 
@@ -192,6 +201,15 @@ The declared ranking policy is:
 | 3 | Linear Regression | 24.454 | 31.231 | 302,723.135 |
 | 4 | Adaptive Lasso | 24.478 | 31.254 | 302,582.511 |
 
+### Validation warning metrics
+
+| Model | Precision | Recall | F1 | False-alert rate | Missed-failure rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| LightGBM | 92.41% | 83.97% | 87.99% | 1.15% | 16.03% |
+| XGBoost | 92.44% | 82.24% | 87.04% | 1.12% | 17.76% |
+| Linear Regression | 91.09% | 63.45% | 74.80% | 1.03% | 36.55% |
+| Adaptive Lasso | 90.86% | 63.45% | 74.72% | 1.06% | 36.55% |
+
 After selection, LightGBM was retrained on all 100 training engines and evaluated
 once on the official 100-engine test set:
 
@@ -200,6 +218,16 @@ once on the official 100-engine test set:
 | MAE | 19.447 cycles |
 | RMSE | 26.820 cycles |
 | NASA score | 8,065.366 |
+| Precision | 94.44% |
+| Recall | 70.83% |
+| F1 | 80.95% |
+| False-alert rate | 1.32% |
+| Missed-failure rate | 29.17% |
+
+The official test confusion matrix is 17 true positives, 1 false positive, 75 true
+negatives, and 7 false negatives. The 70.83% recall is below the original 90%
+imminent-failure recall target. This evidence prevents production approval even
+though LightGBM remains the best of the four compared candidates.
 
 The validation NASA scores are much larger because validation contains 4,070
 cycle-level predictions, while the official test contains one final observation for
@@ -211,7 +239,7 @@ must not be compared directly.
 The completed run is stored at:
 
 ```text
-artifacts/training-runs/fd001-four-model-v1/
+artifacts/training-runs/fd001-four-model-28cycle-v1/
 ```
 
 It contains:
@@ -375,7 +403,7 @@ history ending at:
 | `features/builder.py` | Deterministic conversion from telemetry measurements to `features-v1` |
 | `training/data.py` | Manifest verification, RUL labels, official test loading, and engine-level split |
 | `training/models.py` | Linear Regression, Adaptive Lasso, XGBoost, and LightGBM definitions |
-| `training/evaluate.py` | MAE, RMSE, NASA score, and result contracts |
+| `training/evaluate.py` | RUL regression metrics, 28-cycle warning metrics, and result contracts |
 | `training/train.py` | Candidate comparison, selection, official test evaluation, and immutable publication |
 | `inference/artifacts.py` | Serving manifest and approved-only artifact loading |
 | `inference/predictor.py` | Model-independent RUL predictor interface |
@@ -429,7 +457,7 @@ At phase completion:
 - Migration `0004_prediction_lineage` was applied to local PostgreSQL.
 - PostgreSQL tests verified insert, exact duplicate, conflict, last-valid lookup,
   atomic commit, and rollback after model failure.
-- `pytest`: 141 tests passed with all PostgreSQL integration tests executed.
+- `pytest`: 143 tests passed with all PostgreSQL integration tests executed.
 - Ruff: all lint checks passed.
 - Strict Mypy: no issues found in 37 source files.
 
@@ -439,7 +467,8 @@ Phase 5 does not implement:
 
 - Promotion of the experiment winner to an approved production release.
 - MLflow tracking or model registry integration.
-- Failure-risk classification or alert policy.
+- Runtime warning and alert generation from the evaluated 28-cycle decision rule.
+- A calibrated failure probability or separately trained failure-risk classifier.
 - Fleet and engine-detail APIs.
 - Dashboard presentation of current and last-valid predictions.
 - Airflow orchestration.
@@ -455,8 +484,10 @@ Phase 5 is accepted because training and inference now share a versioned feature
 contract, model comparison is reproducible and leakage-safe, serving is protected by
 an explicit approval gate, unsafe inputs are withheld, degraded inputs remain
 visible, predictions are traceable and idempotent, failures remain retryable, and
-the transaction behavior has been verified against PostgreSQL.
+the transaction behavior has been verified against PostgreSQL. This accepts the
+Phase 5 engineering implementation; it does not approve LightGBM for production,
+because its official 28-cycle recall remains below the 90% target.
 
-The next phase will package and approve a production candidate, strengthen model
-evaluation and promotion rules, and introduce experiment/registry lifecycle support
-without allowing automatic promotion.
+The next phase will enforce the promotion rules, track experiments and registry
+state, and improve or replace the candidate before approval. Promotion will remain
+explicit and will require the candidate to satisfy the agreed gates.

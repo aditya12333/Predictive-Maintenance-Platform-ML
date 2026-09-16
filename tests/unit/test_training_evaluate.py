@@ -21,6 +21,47 @@ def test_perfect_predictions_have_zero_error() -> None:
     assert evaluation.mae_cycles == 0.0
     assert evaluation.rmse_cycles == 0.0
     assert evaluation.nasa_score == 0.0
+    assert evaluation.failure_horizon.actual_warning_count == 2
+    assert evaluation.failure_horizon.predicted_warning_count == 2
+    assert evaluation.failure_horizon.precision == 1.0
+    assert evaluation.failure_horizon.recall == 1.0
+    assert evaluation.failure_horizon.f1_score == 1.0
+    assert evaluation.failure_horizon.false_alert_rate == 0.0
+    assert evaluation.failure_horizon.missed_failure_rate == 0.0
+
+
+def test_failure_horizon_metrics_capture_false_alerts_and_missed_failures() -> None:
+    evaluation = evaluate_predictions(
+        model_name="candidate",
+        actual_rul=[10.0, 20.0, 40.0, 50.0],
+        predicted_rul=[15.0, 35.0, 25.0, 60.0],
+    )
+
+    warning = evaluation.failure_horizon
+    assert warning.horizon_cycles == 28
+    assert warning.actual_warning_count == 2
+    assert warning.predicted_warning_count == 2
+    assert warning.true_positives == 1
+    assert warning.false_positives == 1
+    assert warning.true_negatives == 1
+    assert warning.false_negatives == 1
+    assert warning.precision == pytest.approx(0.5)
+    assert warning.recall == pytest.approx(0.5)
+    assert warning.f1_score == pytest.approx(0.5)
+    assert warning.false_alert_rate == pytest.approx(0.5)
+    assert warning.missed_failure_rate == pytest.approx(0.5)
+
+
+def test_failure_horizon_includes_exactly_28_cycles() -> None:
+    evaluation = evaluate_predictions(
+        model_name="boundary",
+        actual_rul=[28.0, 29.0],
+        predicted_rul=[28.0, 29.0],
+    )
+
+    warning = evaluation.failure_horizon
+    assert warning.true_positives == 1
+    assert warning.true_negatives == 1
 
 
 def test_nasa_score_penalizes_late_warning_more_than_early_warning() -> None:
