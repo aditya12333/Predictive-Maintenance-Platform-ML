@@ -12,7 +12,7 @@ import joblib
 import numpy as np
 import polars as pl
 from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+from sklearn.metrics import mean_absolute_error
 from sklearn.preprocessing import StandardScaler
 
 from predictive_maintenance.data.download import calculate_sha256
@@ -21,6 +21,8 @@ from predictive_maintenance.features.contracts import FEATURE_NAMES, FEATURE_VER
 from predictive_maintenance.inference.artifacts import (
     ModelApprovalStatus,
     ModelArtifactManifest,
+    RegressionMetrics,
+    calculate_artifact_sha256,
 )
 from predictive_maintenance.training.data import (
     DEFAULT_RANDOM_SEED,
@@ -29,6 +31,7 @@ from predictive_maintenance.training.data import (
     load_fd001_training_data,
     split_by_engine,
 )
+from predictive_maintenance.training.evaluate import evaluate_predictions
 
 TARGET_NAME = RUL_TARGET
 
@@ -134,8 +137,13 @@ def train_baseline(
         age_only_model.predict(validation_rows.select("cycle").to_numpy()),
     )
 
-    model_mae = float(mean_absolute_error(validation_targets, predictions))
-    model_rmse = float(root_mean_squared_error(validation_targets, predictions))
+    model_evaluation = evaluate_predictions(
+        model_name="ridge",
+        actual_rul=validation_targets,
+        predicted_rul=predictions,
+    )
+    model_mae = model_evaluation.mae_cycles
+    model_rmse = model_evaluation.rmse_cycles
     age_only_mae = float(mean_absolute_error(validation_targets, age_only_predictions))
     improvement = (age_only_mae - model_mae) / age_only_mae
     if not all(math.isfinite(value) for value in (model_mae, model_rmse, improvement)):
@@ -145,6 +153,7 @@ def train_baseline(
     dataset_manifest = DatasetManifest.model_validate_json(
         manifest_path.read_text(encoding="utf-8")
     )
+    generated_at = datetime.now(UTC)
     evaluation = BaselineEvaluation(
         model_release=model_release,
         dataset_version=(
@@ -165,7 +174,7 @@ def train_baseline(
         model_rmse_cycles=model_rmse,
         age_only_mae_cycles=age_only_mae,
         improvement_over_age_only=improvement,
-        generated_at=datetime.now(UTC).isoformat(),
+        generated_at=generated_at.isoformat(),
     )
 
     artifact_root.mkdir(parents=True, exist_ok=True)
@@ -182,11 +191,33 @@ def train_baseline(
         )
         manifest = ModelArtifactManifest(
             model_release=model_release,
+            model_name="ridge",
+            source_training_run=model_release,
+            created_at=generated_at,
             feature_version=FEATURE_VERSION,
+            feature_names=FEATURE_NAMES,
             training_dataset_version=evaluation.dataset_version,
+            dataset_manifest_sha256=evaluation.dataset_manifest_sha256,
+            target_definition=evaluation.target_definition,
+            prediction_postprocessing=evaluation.prediction_postprocessing,
             model_path=Path("model.joblib"),
-            scaler_path=Path("scaler.joblib"),
-            mae_cycles=model_mae,
+            model_sha256=calculate_artifact_sha256(staging_dir / "model.joblib"),
+            preprocessing_path=Path("scaler.joblib"),
+            preprocessing_sha256=calculate_artifact_sha256(
+                staging_dir / "scaler.joblib"
+            ),
+            evaluation_report_path=Path("evaluation.json"),
+            evaluation_report_sha256=calculate_artifact_sha256(
+                staging_dir / "evaluation.json"
+            ),
+            validation_metrics=RegressionMetrics(
+                model_name=model_evaluation.model_name,
+                sample_count=model_evaluation.sample_count,
+                mae_cycles=model_evaluation.mae_cycles,
+                rmse_cycles=model_evaluation.rmse_cycles,
+                nasa_score=model_evaluation.nasa_score,
+            ),
+            official_test_metrics=None,
             status=ModelApprovalStatus.CANDIDATE,
         )
         (staging_dir / "manifest.json").write_text(

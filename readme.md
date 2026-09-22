@@ -11,8 +11,6 @@ path from trusted historical data to quality-aware streaming inference.
 > supports maintenance decisions; it is not a certified aviation system and does
 > not autonomously control equipment.
 
-![Phase 5 training and inference flow](docs/media/phase5-rul-training-inference.png)
-
 ## Current status
 
 | Phase | Outcome | Status |
@@ -22,16 +20,16 @@ path from trusted historical data to quality-aware streaming inference.
 | 3 | Production architecture and reliability design | Completed |
 | 4 | Durable streaming, event ordering, DLQ, and quality warnings | Completed |
 | 5 | Versioned features, model comparison, inference, and prediction persistence | Completed |
-| 6 | Model packaging, approval gates, experiment tracking, and registry lifecycle | Next |
+| 6 | Model packaging, approval gates, experiment tracking, and registry lifecycle | Completed |
 | 7 | Alerts, operational APIs, and fleet dashboard | Planned |
 | 8 | Airflow orchestration | Planned |
 | 9 | Monitoring and drift detection | Planned |
 | 10 | CI/CD and cloud deployment | Planned |
 | 11 | Load testing, security review, and final delivery | Planned |
 
-Phase 5 completed with **141 passing tests**, including PostgreSQL integration tests
-for atomic commit, rollback, duplicate processing, conflicts, and last-valid
-prediction lookup.
+Phase 6 completed with an approved LightGBM registry version, an audited `champion`
+alias, checksum-verified local caching, and a real FastAPI → Redpanda → consumer →
+PostgreSQL prediction using that champion.
 
 ## What is implemented
 
@@ -79,6 +77,17 @@ prediction lookup.
 - Idempotency through `(event_id, model_release)` uniqueness.
 - Last-valid prediction lookup for future dashboard use.
 
+### Governed model lifecycle
+
+- Optional MLflow tracking with one comparison parent and four model child runs.
+- Immutable candidate packages with dataset, feature, metric, and checksum lineage.
+- Separate candidate registration, evidence review, human approval, and promotion.
+- Provisional MAE, RMSE, NASA score, latency, load-time, size, and memory gates.
+- Audited `champion` and `previous` aliases with compensating promotion behavior.
+- Registry-backed inference that verifies approval and promotion decision records.
+- Versioned local serving cache with checksum and registry-lineage verification.
+- Fail-closed startup when the alias, approval, audit evidence, or package is invalid.
+
 ## Model results
 
 The four candidates used the same engine-level validation split and feature
@@ -100,9 +109,9 @@ evaluated once on the official 100-engine test set:
 | RMSE | 26.820 cycles |
 | NASA score | 8,065.366 |
 
-LightGBM is the **experiment winner**, not an approved production model. The
-streaming inference path will load a model only when an approved manifest is
-explicitly configured.
+LightGBM release `rul-lightgbm-v1` is MLflow model `cmapss-fd001-rul` version `1`.
+It is provisionally approved and holds the `champion` alias. Its limits must be
+reviewed when domain-owner requirements are available.
 
 ## Runtime contracts
 
@@ -170,6 +179,7 @@ failure date.
 | Schema migrations | Alembic |
 | Testing and quality | Pytest, Ruff, strict Mypy |
 | Local infrastructure | Docker Compose |
+| Experiment and model lifecycle | MLflow |
 
 ## Repository structure
 
@@ -179,7 +189,7 @@ src/predictive_maintenance/
 ├── core/           # Runtime settings
 ├── data/           # Download, extraction, validation, and publication
 ├── features/       # Versioned feature contracts and builder
-├── inference/      # Artifact loading, predictor, worker, and transaction processor
+├── inference/      # Artifact, registry, predictor, worker, and transaction processor
 ├── storage/        # Telemetry and prediction persistence
 ├── streaming/      # Producer, consumer, DLQ, and event-time reorder logic
 └── training/       # Data split, models, evaluation, and comparison pipeline
@@ -258,21 +268,28 @@ Useful endpoints:
 
 ### Run the stream consumer
 
-Without an approved model manifest, the consumer continues the telemetry reliability
-path without model inference:
+The consumer can run without inference by setting:
 
 ```bash
+export PM_INFERENCE_MODEL_SOURCE=none
 .venv/bin/pm-platform stream worker
 ```
 
-After Phase 6 packages and approves a serving release:
+To serve the approved MLflow champion, start MLflow and configure:
 
 ```bash
-export PM_APPROVED_MODEL_MANIFEST_PATH=artifacts/<approved-release>/manifest.json
+./scripts/run_mlflow_server.sh
+
+export PM_MLFLOW_TRACKING_URI=http://127.0.0.1:5000
+export PM_MLFLOW_REGISTERED_MODEL_NAME=cmapss-fd001-rul
+export PM_INFERENCE_MODEL_SOURCE=mlflow_champion
+export PM_MODEL_CACHE_ROOT=artifacts/model-cache
+.venv/bin/pm-platform model verify-champion
 .venv/bin/pm-platform stream worker
 ```
 
-Candidate and retired manifests are rejected by the serving gate.
+The worker resolves the current alias on startup and rejects unapproved versions,
+invalid decision records, lineage conflicts, and modified cached artifacts.
 
 ## Verification
 
@@ -282,13 +299,15 @@ Candidate and retired manifests are rejected by the serving gate.
 .venv/bin/mypy src
 ```
 
-Phase 5 completion evidence:
+Phase 6 completion evidence:
 
 ```text
-141 tests passed
+180 tests passed, including PostgreSQL integration tests
 Ruff passed
-Strict Mypy passed for 37 source files
+Strict Mypy passed for 44 source files
 PostgreSQL migration: 0004_prediction_lineage (head)
+MLflow champion: cmapss-fd001-rul version 1 / rul-lightgbm-v1
+Real streaming path: FastAPI → Redpanda → champion inference → PostgreSQL
 ```
 
 ## Documentation
@@ -300,11 +319,13 @@ PostgreSQL migration: 0004_prediction_lineage (head)
 - [Phase 5: Feature generation, RUL modelling, and inference](docs/phases/05-feature-generation-model-training-and-inference.md)
 - [Delivery roadmap](docs/project-roadmap.md)
 
+The detailed Phase 6 record, daily checkpoints, presentation runbook, and LinkedIn
+draft are maintained locally and excluded from Git as personal working notes.
+
 ## Current boundaries
 
 The repository does not yet include:
 
-- An approved production model release or registry-backed champion.
 - Failure-risk classification, alert thresholds, and classification metrics.
 - Alert creation and maintenance decision workflows.
 - Prediction-history and fleet-state APIs.
@@ -317,7 +338,6 @@ These are shown as planned work rather than current system outputs.
 
 ## Next phase
 
-Phase 6 will package the selected experiment as a candidate, enforce regression
-evaluation and human approval gates, and introduce experiment tracking and
-model-registry lifecycle support. Model promotion will remain explicit and
-auditable.
+Phase 7 will add alert creation, dashboard-ready operational APIs, and the fleet
+dashboard experience on top of persisted telemetry, quality issues, and RUL
+predictions.

@@ -107,7 +107,7 @@ def test_training_publishes_auditable_candidate_and_refuses_overwrite(
     )
     evaluation_json = json.loads((release_dir / "evaluation.json").read_text())
     assert manifest.status.value == "candidate"
-    assert manifest.mae_cycles == evaluation.model_mae_cycles
+    assert manifest.validation_metrics.mae_cycles == evaluation.model_mae_cycles
     assert evaluation_json["prediction_postprocessing"] == "max(0, predicted_rul)"
     assert set(evaluation.training_engine_ids).isdisjoint(evaluation.validation_engine_ids)
     assert (release_dir / "model.joblib").is_file()

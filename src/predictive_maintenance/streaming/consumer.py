@@ -61,11 +61,23 @@ class TelemetryConsumer:
         self._settings = settings
         self._producer = TelemetryProducer(settings)
         self._event_processor = event_processor
-        if self._event_processor is None and settings.approved_model_manifest_path is not None:
-            self._event_processor = TransactionalInferenceProcessor.load_approved(
-                engine=engine,
-                manifest_path=settings.approved_model_manifest_path,
-            )
+        if self._event_processor is None:
+            if settings.inference_model_source == "local_manifest":
+                if settings.approved_model_manifest_path is None:
+                    raise ValueError("local manifest model source has no manifest path")
+                self._event_processor = TransactionalInferenceProcessor.load_approved(
+                    engine=engine,
+                    manifest_path=settings.approved_model_manifest_path,
+                )
+            elif settings.inference_model_source == "mlflow_champion":
+                if settings.mlflow_tracking_uri is None:
+                    raise ValueError("MLflow champion model source has no tracking URI")
+                self._event_processor = TransactionalInferenceProcessor.load_champion(
+                    engine=engine,
+                    tracking_uri=settings.mlflow_tracking_uri,
+                    registered_model_name=settings.mlflow_registered_model_name,
+                    cache_root=settings.model_cache_root,
+                )
 
     def _process_with_retry(
         self,

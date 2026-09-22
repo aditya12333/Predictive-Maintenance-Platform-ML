@@ -29,7 +29,9 @@ def valid_features() -> FeatureVector:
 
 
 def test_predictor_returns_non_negative_rul() -> None:
-    predictor = SklearnRULPredictor(scaler=IdentityScaler(), model=ConstantModel(-3.0))
+    predictor = SklearnRULPredictor(
+        preprocessor=IdentityScaler(), model=ConstantModel(-3.0)
+    )
 
     assert predictor.predict(valid_features()) == 0.0
 
@@ -38,7 +40,15 @@ def test_predictor_rejects_wrong_feature_order() -> None:
     features = valid_features().model_copy(
         update={"feature_names": tuple(reversed(FEATURE_NAMES))}
     )
-    predictor = SklearnRULPredictor(scaler=IdentityScaler(), model=ConstantModel(10.0))
+    predictor = SklearnRULPredictor(
+        preprocessor=IdentityScaler(), model=ConstantModel(10.0)
+    )
 
     with pytest.raises(ValueError, match="ordering"):
         predictor.predict(features)
+
+
+def test_predictor_supports_a_model_without_preprocessing() -> None:
+    predictor = SklearnRULPredictor(model=ConstantModel(14.0))
+
+    assert predictor.predict(valid_features()) == 14.0

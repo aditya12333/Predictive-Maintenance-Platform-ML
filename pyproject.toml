@@ -13,6 +13,7 @@ dependencies = [
     "fastapi>=0.115,<1",
     "joblib>=1.4,<2",
     "lightgbm>=4,<5",
+    "mlflow>=3.7,<4",
     "numpy>=2,<2.4",
     "polars>=1.32,<2",
     "pydantic>=2.10,<3",

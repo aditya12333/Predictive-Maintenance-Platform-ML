@@ -20,12 +20,14 @@ Completed:
   idle flushing, and data-quality warnings.
 - Phase 5: Versioned features, four-model RUL comparison, quality-aware inference,
   idempotent prediction persistence, and transactional consumer integration.
+- Phase 6: Immutable model packaging, MLflow experiments and registry, explicit
+  approval and promotion, serving benchmarks, champion resolution, verified local
+  caching, and real streaming inference with the promoted LightGBM release.
 
 Next:
 
-- Phase 6: package the serving candidate, enforce regression promotion gates, and
-  introduce experiment and model-registry lifecycle support. Approval remains
-  explicit and blocked until the gates pass.
+- Phase 7: add equipment and data-quality alerts, dashboard-ready APIs, and the
+  fleet dashboard.
 
 The exact daily checkpoint is maintained in
 `docs/daily-progress.md`.
@@ -36,19 +38,20 @@ The Phase 4 documentation is available in
 The Phase 5 documentation is available in
 `docs/phases/05-feature-generation-model-training-and-inference.md`.
 
-## Remaining phases
+## Phase record and remaining phases
 
-### Phase 6: Training, evaluation, and model approval
+### Phase 6: Training, evaluation, and model approval — completed 2026-09-22
 
 Estimated duration: 5–7 focused days.
 
-- Package the Phase 5 experiment winner against the serving artifact contract as a
-  candidate release.
-- Add experiment tracking and model registry integration.
-- Compare future candidates against the approved champion.
-- Track MAE, RMSE, NASA score, latency, and resource usage.
-- Version models, scalers, feature definitions, and evaluation reports.
-- Define approval and rollback rules.
+- Packaged the Phase 5 LightGBM winner as immutable release `rul-lightgbm-v1`.
+- Tracked the comparison and all four candidates in MLflow.
+- Registered, benchmarked, provisionally approved, and explicitly promoted model
+  version `1` under `cmapss-fd001-rul`.
+- Recorded MAE, RMSE, NASA score, latency, load time, size, and memory evidence.
+- Defined approval, promotion, previous-model, compensation, and rollback rules.
+- Connected inference to the verified `champion` alias through a versioned local
+  cache and verified the real streaming prediction path.
 
 ### Phase 7: Fleet dashboard and operational workflows
 

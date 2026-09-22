@@ -55,6 +55,32 @@ class TransactionalInferenceProcessor:
             ),
         )
 
+    @classmethod
+    def load_champion(
+        cls,
+        *,
+        engine: Engine,
+        tracking_uri: str,
+        registered_model_name: str,
+        cache_root: Path,
+    ) -> "TransactionalInferenceProcessor":
+        """Build the processor from the verified MLflow champion alias."""
+
+        from predictive_maintenance.inference.registry import resolve_champion
+
+        champion = resolve_champion(
+            tracking_uri=tracking_uri,
+            registered_model_name=registered_model_name,
+            cache_root=cache_root,
+        )
+        return cls(
+            engine=engine,
+            worker=InferenceWorker(
+                predictor=champion.predictor,
+                model_release=champion.model_release,
+            ),
+        )
+
     def process(
         self,
         event: TelemetryEventRecord,

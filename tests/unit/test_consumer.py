@@ -150,6 +150,7 @@ def test_constructor_loads_explicitly_configured_approved_model(
     engine = cast(Engine, object())
     manifest_path = Path("artifacts/approved/manifest.json")
     settings = PlatformSettings(
+        inference_model_source="local_manifest",
         approved_model_manifest_path=manifest_path,
         _env_file=None,
     )
@@ -165,3 +166,38 @@ def test_constructor_loads_explicitly_configured_approved_model(
 
     assert consumer._event_processor is event_processor
     loader.assert_called_once_with(engine=engine, manifest_path=manifest_path)
+
+
+def test_constructor_loads_mlflow_champion_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    kafka_consumer = Mock()
+    producer = Mock()
+    event_processor = Mock()
+    loader = Mock(return_value=event_processor)
+    engine = cast(Engine, object())
+    settings = PlatformSettings(
+        inference_model_source="mlflow_champion",
+        mlflow_tracking_uri="http://127.0.0.1:5000",
+        mlflow_registered_model_name="fd001-rul",
+        model_cache_root=tmp_path / "model-cache",
+        _env_file=None,
+    )
+    monkeypatch.setattr(consumer_module, "Consumer", Mock(return_value=kafka_consumer))
+    monkeypatch.setattr(consumer_module, "TelemetryProducer", Mock(return_value=producer))
+    monkeypatch.setattr(
+        consumer_module.TransactionalInferenceProcessor,
+        "load_champion",
+        loader,
+    )
+
+    consumer = TelemetryConsumer(settings, engine)
+
+    assert consumer._event_processor is event_processor
+    loader.assert_called_once_with(
+        engine=engine,
+        tracking_uri="http://127.0.0.1:5000",
+        registered_model_name="fd001-rul",
+        cache_root=tmp_path / "model-cache",
+    )
