@@ -322,19 +322,7 @@ Real streaming path: FastAPI → Redpanda → champion inference → PostgreSQL
 The detailed Phase 6 record, daily checkpoints, presentation runbook, and LinkedIn
 draft are maintained locally and excluded from Git as personal working notes.
 
-## Current boundaries
 
-The repository does not yet include:
-
-- Failure-risk classification, alert thresholds, and classification metrics.
-- Alert creation and maintenance decision workflows.
-- Prediction-history and fleet-state APIs.
-- A fleet dashboard.
-- Airflow orchestration.
-- Production monitoring and drift detection.
-- CI/CD or cloud deployment.
-
-These are shown as planned work rather than current system outputs.
 
 ## Next phase
 
