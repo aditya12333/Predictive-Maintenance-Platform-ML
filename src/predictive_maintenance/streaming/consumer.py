@@ -16,6 +16,7 @@ from sqlalchemy.exc import OperationalError
 from predictive_maintenance.api.app import TelemetryRequest, _payload_digest
 from predictive_maintenance.core.settings import PlatformSettings
 from predictive_maintenance.inference.processor import TransactionalInferenceProcessor
+from predictive_maintenance.storage.alerts import AlertPolicy
 from predictive_maintenance.storage.database import (
     TelemetryEventRecord,
     delete_pending_event,
@@ -68,6 +69,10 @@ class TelemetryConsumer:
                 self._event_processor = TransactionalInferenceProcessor.load_approved(
                     engine=engine,
                     manifest_path=settings.approved_model_manifest_path,
+                    alert_policy=AlertPolicy(
+                        warning_rul_cycles=settings.equipment_warning_rul_cycles,
+                        critical_rul_cycles=settings.equipment_critical_rul_cycles,
+                    ),
                 )
             elif settings.inference_model_source == "mlflow_champion":
                 if settings.mlflow_tracking_uri is None:
@@ -77,6 +82,10 @@ class TelemetryConsumer:
                     tracking_uri=settings.mlflow_tracking_uri,
                     registered_model_name=settings.mlflow_registered_model_name,
                     cache_root=settings.model_cache_root,
+                    alert_policy=AlertPolicy(
+                        warning_rul_cycles=settings.equipment_warning_rul_cycles,
+                        critical_rul_cycles=settings.equipment_critical_rul_cycles,
+                    ),
                 )
 
     def _process_with_retry(

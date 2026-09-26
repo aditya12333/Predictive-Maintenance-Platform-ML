@@ -26,8 +26,7 @@ Completed:
 
 Next:
 
-- Phase 7: add equipment and data-quality alerts, dashboard-ready APIs, and the
-  fleet dashboard.
+- Phase 8: orchestrate training and batch workflows with Airflow.
 
 The exact daily checkpoint is maintained in
 `docs/daily-progress.md`.
@@ -38,22 +37,21 @@ The Phase 4 documentation is available in
 The Phase 5 documentation is available in
 `docs/phases/05-feature-generation-model-training-and-inference.md`.
 
-## Phase record and remaining phases
+## Remaining phases
 
-### Phase 6: Training, evaluation, and model approval — completed 2026-09-22
+### Phase 6: Training, evaluation, and model approval
 
 Estimated duration: 5–7 focused days.
 
-- Packaged the Phase 5 LightGBM winner as immutable release `rul-lightgbm-v1`.
-- Tracked the comparison and all four candidates in MLflow.
-- Registered, benchmarked, provisionally approved, and explicitly promoted model
-  version `1` under `cmapss-fd001-rul`.
-- Recorded MAE, RMSE, NASA score, latency, load time, size, and memory evidence.
-- Defined approval, promotion, previous-model, compensation, and rollback rules.
-- Connected inference to the verified `champion` alias through a versioned local
-  cache and verified the real streaming prediction path.
+- Package the Phase 5 experiment winner against the serving artifact contract as a
+  candidate release.
+- Add experiment tracking and model registry integration.
+- Compare future candidates against the approved champion.
+- Track MAE, RMSE, NASA score, latency, and resource usage.
+- Version models, scalers, feature definitions, and evaluation reports.
+- Define approval and rollback rules.
 
-### Phase 7: Fleet dashboard and operational workflows
+### Phase 7: Fleet dashboard and operational workflows — Completed
 
 Estimated duration: 7–10 focused days.
 
@@ -74,6 +72,12 @@ It will support:
 The frontend will consume documented backend APIs rather than querying the
 database directly. Frontend technology will be selected before implementation,
 with a production-oriented React/Next.js approach as the default candidate.
+
+Completed implementation includes the FastAPI operational contracts and queries,
+automatic data-quality alert evaluation with deduplication, alert lifecycle
+actions, a Next.js fleet overview, equipment detail pages, prediction history,
+search/filter/sort controls, automatic refresh, connection-error handling, and
+local end-to-end verification through the promoted model.
 
 ### Phase 8: Airflow orchestration
 

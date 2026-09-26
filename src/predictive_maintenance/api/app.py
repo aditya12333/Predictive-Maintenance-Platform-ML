@@ -1,21 +1,44 @@
 """HTTP ingestion API for telemetry events."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Path, Query, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import Engine, text
 
+from predictive_maintenance.api.contracts import (
+    AlertListResponse,
+    AlertState,
+    AlertTransitionRequest,
+    AlertView,
+    EquipmentDetailResponse,
+    FleetHealthResponse,
+    PredictionHistoryResponse,
+)
 from predictive_maintenance.core.settings import load_settings
 from predictive_maintenance.data.contracts import TELEMETRY_SCHEMA_VERSION
+from predictive_maintenance.storage.alerts import (
+    AlertNotFoundError,
+    AlertVersionConflictError,
+    InvalidAlertTransitionError,
+    transition_alert,
+)
 from predictive_maintenance.storage.database import (
     DurableEventSink,
     EventPersistenceOutcome,
     PostgresEventSink,
     TelemetryEventRecord,
     create_database_engine,
+)
+from predictive_maintenance.storage.operational import (
+    load_alerts,
+    load_equipment_detail,
+    load_fleet_health,
+    load_prediction_history,
 )
 from predictive_maintenance.streaming.producer import RedpandaEventSink
 
@@ -68,6 +91,13 @@ def create_app(
     """Create the API with an injectable durable sink for testing and deployment."""
 
     app = FastAPI(title="AeroReliability Telemetry API", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_credentials=False,
+        allow_methods=["GET", "PATCH", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
+    )
     settings = load_settings()
     database_engine = engine or create_database_engine(settings)
     event_sink = sink
@@ -94,6 +124,96 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=503, detail="database is unavailable") from exc
         return {"status": "ready"}
+
+    @app.get(
+        "/v1/fleet/health",
+        response_model=FleetHealthResponse,
+        tags=["operations"],
+    )
+    def fleet_health() -> FleetHealthResponse:
+        """Return the current operational state of every observed engine."""
+
+        return load_fleet_health(
+            database_engine,
+            as_of=datetime.now(UTC),
+            stale_after=timedelta(seconds=settings.dashboard_stale_after_seconds),
+        )
+
+    @app.get(
+        "/v1/equipment/{engine_id}",
+        response_model=EquipmentDetailResponse,
+        tags=["operations"],
+    )
+    def equipment_detail(
+        engine_id: int = Path(gt=0),
+    ) -> EquipmentDetailResponse:
+        """Return current state and operational evidence for one engine."""
+
+        try:
+            return load_equipment_detail(
+                database_engine,
+                engine_id=engine_id,
+                as_of=datetime.now(UTC),
+                stale_after=timedelta(seconds=settings.dashboard_stale_after_seconds),
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get(
+        "/v1/equipment/{engine_id}/predictions",
+        response_model=PredictionHistoryResponse,
+        tags=["operations"],
+    )
+    def equipment_predictions(
+        engine_id: int = Path(gt=0),
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> PredictionHistoryResponse:
+        """Return immutable RUL prediction history for one engine."""
+
+        return load_prediction_history(database_engine, engine_id=engine_id, limit=limit)
+
+    @app.get(
+        "/v1/alerts",
+        response_model=AlertListResponse,
+        tags=["operations"],
+    )
+    def alerts(
+        engine_id: int | None = Query(default=None, gt=0),
+        state: Annotated[AlertState | None, Query()] = None,
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> AlertListResponse:
+        """Return active or historical alerts with optional filters."""
+
+        return load_alerts(
+            database_engine,
+            engine_id=engine_id,
+            state=state,
+            limit=limit,
+        )
+
+    @app.patch(
+        "/v1/alerts/{alert_id}",
+        response_model=AlertView,
+        tags=["operations"],
+    )
+    def update_alert(
+        request: AlertTransitionRequest,
+        alert_id: int = Path(gt=0),
+    ) -> AlertView:
+        """Apply one version-checked human alert action."""
+
+        try:
+            return transition_alert(
+                database_engine,
+                alert_id=alert_id,
+                request=request,
+            )
+        except AlertNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except AlertVersionConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        except InvalidAlertTransitionError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post(
         "/v1/telemetry",

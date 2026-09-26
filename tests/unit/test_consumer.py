@@ -165,7 +165,11 @@ def test_constructor_loads_explicitly_configured_approved_model(
     consumer = TelemetryConsumer(settings, engine)
 
     assert consumer._event_processor is event_processor
-    loader.assert_called_once_with(engine=engine, manifest_path=manifest_path)
+    loader.assert_called_once_with(
+        engine=engine,
+        manifest_path=manifest_path,
+        alert_policy=consumer_module.AlertPolicy(),
+    )
 
 
 def test_constructor_loads_mlflow_champion_when_configured(
@@ -200,4 +204,5 @@ def test_constructor_loads_mlflow_champion_when_configured(
         tracking_uri="http://127.0.0.1:5000",
         registered_model_name="fd001-rul",
         cache_root=tmp_path / "model-cache",
+        alert_policy=consumer_module.AlertPolicy(),
     )

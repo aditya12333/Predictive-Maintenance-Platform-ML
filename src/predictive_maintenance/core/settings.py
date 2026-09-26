@@ -71,6 +71,21 @@ class PlatformSettings(BaseSettings):
         gt=0,
         description="Idle time before pending events are released from the reorder buffer",
     )
+    dashboard_stale_after_seconds: int = Field(
+        default=3600,
+        gt=0,
+        description="Age after which the latest equipment event is shown as stale",
+    )
+    equipment_warning_rul_cycles: float | None = Field(
+        default=None,
+        ge=0,
+        description="Optional RUL threshold for an equipment warning alert",
+    )
+    equipment_critical_rul_cycles: float | None = Field(
+        default=None,
+        ge=0,
+        description="Optional RUL threshold for an equipment critical alert",
+    )
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -124,6 +139,15 @@ class PlatformSettings(BaseSettings):
             raise ValueError(
                 "PM_MLFLOW_TRACKING_URI is required when "
                 "PM_INFERENCE_MODEL_SOURCE=mlflow_champion"
+            )
+        if (
+            self.equipment_critical_rul_cycles is not None
+            and self.equipment_warning_rul_cycles is not None
+            and self.equipment_critical_rul_cycles > self.equipment_warning_rul_cycles
+        ):
+            raise ValueError(
+                "PM_EQUIPMENT_CRITICAL_RUL_CYCLES must be less than or equal to "
+                "PM_EQUIPMENT_WARNING_RUL_CYCLES"
             )
         return self
 

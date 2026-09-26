@@ -17,6 +17,7 @@ def test_settings_use_safe_local_defaults(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.delenv("PM_MLFLOW_REGISTERED_MODEL_NAME", raising=False)
     monkeypatch.delenv("PM_INFERENCE_MODEL_SOURCE", raising=False)
     monkeypatch.delenv("PM_MODEL_CACHE_ROOT", raising=False)
+    monkeypatch.delenv("PM_DASHBOARD_STALE_AFTER_SECONDS", raising=False)
 
     settings = PlatformSettings(_env_file=None)
 
@@ -28,6 +29,7 @@ def test_settings_use_safe_local_defaults(monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.mlflow_registered_model_name == "cmapss-fd001-rul"
     assert settings.inference_model_source == "none"
     assert settings.model_cache_root == Path("artifacts/model-cache")
+    assert settings.dashboard_stale_after_seconds == 3600
 
 
 def test_settings_load_prefixed_environment_variables(
@@ -99,5 +101,14 @@ def test_settings_reject_unused_local_manifest_path(tmp_path: Path) -> None:
     with pytest.raises(ValidationError, match="may only be set"):
         PlatformSettings(
             approved_model_manifest_path=tmp_path / "manifest.json",
+            _env_file=None,
+        )
+
+
+def test_settings_require_critical_threshold_not_above_warning() -> None:
+    with pytest.raises(ValidationError, match="CRITICAL_RUL_CYCLES"):
+        PlatformSettings(
+            equipment_warning_rul_cycles=10,
+            equipment_critical_rul_cycles=20,
             _env_file=None,
         )

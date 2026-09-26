@@ -21,7 +21,7 @@ path from trusted historical data to quality-aware streaming inference.
 | 4 | Durable streaming, event ordering, DLQ, and quality warnings | Completed |
 | 5 | Versioned features, model comparison, inference, and prediction persistence | Completed |
 | 6 | Model packaging, approval gates, experiment tracking, and registry lifecycle | Completed |
-| 7 | Alerts, operational APIs, and fleet dashboard | Planned |
+| 7 | Alerts, operational APIs, and fleet dashboard | Completed |
 | 8 | Airflow orchestration | Planned |
 | 9 | Monitoring and drift detection | Planned |
 | 10 | CI/CD and cloud deployment | Planned |
@@ -87,6 +87,16 @@ PostgreSQL prediction using that champion.
 - Registry-backed inference that verifies approval and promotion decision records.
 - Versioned local serving cache with checksum and registry-lineage verification.
 - Fail-closed startup when the alias, approval, audit evidence, or package is invalid.
+
+### Operational APIs and fleet dashboard
+
+- Separate equipment-risk and data-quality alert types with configurable policy thresholds.
+- Transactional alert evaluation and deduplication for repeated quality events.
+- Fleet health, equipment detail, prediction history, and alert-list API endpoints.
+- Version-checked alert acknowledgement, resolution, dismissal, and audit records.
+- Next.js fleet overview with health summaries, search, filters, sorting, and refresh.
+- Equipment detail view with RUL history, last-valid prediction, quality issues, and alert actions.
+- Automatic dashboard refresh every 30 seconds with a last-known-good connection-error state.
 
 ## Model results
 
@@ -266,6 +276,30 @@ Useful endpoints:
 - `GET /ready`
 - `POST /v1/telemetry`
 
+### Run the fleet dashboard
+
+The dashboard lives in `frontend/` and reads the FastAPI operational endpoints.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open <http://localhost:3000> after starting the API at <http://127.0.0.1:8000>.
+
+### Dashboard screenshots
+
+The fleet overview summarizes equipment health, RUL availability, alerts, quality
+issues, and supports search, filtering, and sorting.
+
+![Fleet health dashboard](assets/screenshots/fleet-health-dashboard.png)
+
+The equipment detail view shows the latest and last valid prediction, prediction
+history, data-quality issues, and alert actions.
+
+![Equipment detail dashboard](assets/screenshots/equipment-detail-dashboard.png)
+
 ### Run the stream consumer
 
 The consumer can run without inference by setting:
@@ -310,6 +344,16 @@ MLflow champion: cmapss-fd001-rul version 1 / rul-lightgbm-v1
 Real streaming path: FastAPI → Redpanda → champion inference → PostgreSQL
 ```
 
+Phase 7 completion evidence:
+
+```text
+191 tests passed, including PostgreSQL integration tests
+Ruff passed
+Strict Mypy passed for 47 source files
+Next.js production build passed
+Live dashboard routes and alert workflows verified
+```
+
 ## Documentation
 
 - [Phase 1: Production problem definition](docs/phases/01-production-problem-definition.md)
@@ -322,10 +366,18 @@ Real streaming path: FastAPI → Redpanda → champion inference → PostgreSQL
 The detailed Phase 6 record, daily checkpoints, presentation runbook, and LinkedIn
 draft are maintained locally and excluded from Git as personal working notes.
 
+## Current boundaries
 
+The repository does not yet include:
+
+- Failure-risk classification, alert thresholds, and classification metrics.
+- Airflow orchestration.
+- Production monitoring and drift detection.
+- CI/CD or cloud deployment.
+
+These are shown as planned work rather than current system outputs.
 
 ## Next phase
 
-Phase 7 will add alert creation, dashboard-ready operational APIs, and the fleet
-dashboard experience on top of persisted telemetry, quality issues, and RUL
-predictions.
+Phase 7 is complete. The next phase is Airflow orchestration for training and
+batch workflows.

@@ -9,6 +9,10 @@ from predictive_maintenance.inference.artifacts import load_approved_manifest
 from predictive_maintenance.inference.contracts import DataQualityStatus, InferenceInput
 from predictive_maintenance.inference.sklearn_predictor import SklearnRULPredictor
 from predictive_maintenance.inference.worker import InferenceWorker
+from predictive_maintenance.storage.alerts import (
+    AlertPolicy,
+    persist_prediction_alerts_transaction,
+)
 from predictive_maintenance.storage.database import (
     EventPersistenceOutcome,
     TelemetryEventRecord,
@@ -32,9 +36,16 @@ class EventProcessingResult:
 class TransactionalInferenceProcessor:
     """Persist telemetry and its inference result in one database transaction."""
 
-    def __init__(self, *, engine: Engine, worker: InferenceWorker) -> None:
+    def __init__(
+        self,
+        *,
+        engine: Engine,
+        worker: InferenceWorker,
+        alert_policy: AlertPolicy | None = None,
+    ) -> None:
         self._engine = engine
         self._worker = worker
+        self._alert_policy = alert_policy
 
     @classmethod
     def load_approved(
@@ -42,6 +53,7 @@ class TransactionalInferenceProcessor:
         *,
         engine: Engine,
         manifest_path: Path,
+        alert_policy: AlertPolicy | None = None,
     ) -> "TransactionalInferenceProcessor":
         """Build the processor from an explicitly approved model release."""
 
@@ -53,6 +65,7 @@ class TransactionalInferenceProcessor:
                 predictor=predictor,
                 model_release=manifest.model_release,
             ),
+            alert_policy=alert_policy,
         )
 
     @classmethod
@@ -63,6 +76,7 @@ class TransactionalInferenceProcessor:
         tracking_uri: str,
         registered_model_name: str,
         cache_root: Path,
+        alert_policy: AlertPolicy | None = None,
     ) -> "TransactionalInferenceProcessor":
         """Build the processor from the verified MLflow champion alias."""
 
@@ -79,6 +93,7 @@ class TransactionalInferenceProcessor:
                 predictor=champion.predictor,
                 model_release=champion.model_release,
             ),
+            alert_policy=alert_policy,
         )
 
     def process(
@@ -124,6 +139,12 @@ class TransactionalInferenceProcessor:
             if prediction_outcome is PredictionPersistenceOutcome.CONFLICT:
                 raise PredictionPersistenceError(
                     f"stored prediction conflicts with event {event.event_id}"
+                )
+            if self._alert_policy is not None:
+                persist_prediction_alerts_transaction(
+                    connection,
+                    prediction=prediction,
+                    policy=self._alert_policy,
                 )
             return EventProcessingResult(
                 telemetry_outcome=telemetry_result.outcome,

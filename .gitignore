@@ -51,6 +51,11 @@ Thumbs.db
 # Logs
 *.log
 
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
 # Local learning and publishing notes
 commands.md
 learning_notes/
