@@ -22,7 +22,7 @@ path from trusted historical data to quality-aware streaming inference.
 | 5 | Versioned features, model comparison, inference, and prediction persistence | Completed |
 | 6 | Model packaging, approval gates, experiment tracking, and registry lifecycle | Completed |
 | 7 | Alerts, operational APIs, and fleet dashboard | Completed |
-| 8 | Airflow orchestration | Planned |
+| 8 | Airflow orchestration | In progress: local DAG skeleton |
 | 9 | Monitoring and drift detection | Planned |
 | 10 | CI/CD and cloud deployment | Planned |
 | 11 | Load testing, security review, and final delivery | Planned |
@@ -97,6 +97,14 @@ PostgreSQL prediction using that champion.
 - Next.js fleet overview with health summaries, search, filters, sorting, and refresh.
 - Equipment detail view with RUL history, last-valid prediction, quality issues, and alert actions.
 - Automatic dashboard refresh every 30 seconds with a last-known-good connection-error state.
+
+### Batch orchestration
+
+- Added the `fd001_rul_candidate_pipeline` Airflow DAG for scheduled dataset
+  preparation, four-model training, candidate packaging, registration, and
+  benchmarking.
+- The workflow stops at an explicit human-approval checkpoint; it never approves
+  or promotes a model automatically.
 
 ## Model results
 
