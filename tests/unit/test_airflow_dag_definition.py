@@ -18,4 +18,8 @@ def test_training_dag_has_ordered_batch_tasks_and_manual_boundary() -> None:
         assert task in DAG_SOURCE
     assert "model approve-candidate" not in DAG_SOURCE
     assert "model promote-approved" not in DAG_SOURCE
+    assert "fd001_rul_approval_granted" in DAG_SOURCE
+    assert "mode=\"reschedule\"" in DAG_SOURCE
     assert "schedule=\"0 2 * * *\"" in DAG_SOURCE
+    assert "dag_run.run_id" in DAG_SOURCE
+    assert "RUN_NAME = f\"fd001-airflow-{RUN_KEY}\"" in DAG_SOURCE

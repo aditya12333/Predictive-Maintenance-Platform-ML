@@ -1,16 +1,19 @@
 """Scheduled FD001 training workflow with an explicit human approval boundary."""
 
+import os
 from datetime import datetime, timedelta
 
+from airflow.models import Variable
 from airflow.operators.bash import BashOperator
-from airflow.operators.empty import EmptyOperator
+from airflow.sensors.python import PythonSensor
 
 from airflow import DAG
 
-PROJECT_ROOT = "/opt/predictive-maintenance"
-RUN_NAME = "fd001-airflow-{{ ds_nodash }}"
+PROJECT_ROOT = os.environ.get("PM_AIRFLOW_PROJECT_ROOT", "/opt/predictive-maintenance")
+RUN_KEY = "{{ dag_run.run_id | replace('/', '_') | replace(':', '_') }}"
+RUN_NAME = f"fd001-airflow-{RUN_KEY}"
 TRAINING_RUN = f"artifacts/training-runs/{RUN_NAME}"
-MODEL_RELEASE = "rul-airflow-{{ ds_nodash }}"
+MODEL_RELEASE = f"rul-airflow-{RUN_KEY}"
 MANIFEST = f"artifacts/model-releases/{MODEL_RELEASE}/manifest.json"
 
 DEFAULT_ARGS = {
@@ -25,6 +28,12 @@ def platform_command(command: str) -> str:
     """Run a project CLI command from the mounted application directory."""
 
     return f"set -euo pipefail\ncd {PROJECT_ROOT}\n.venv/bin/pm-platform {command}"
+
+
+def approval_is_granted() -> bool:
+    """Require an explicit operator-set variable before closing the DAG run."""
+
+    return Variable.get("fd001_rul_approval_granted", default_var="false").lower() == "true"
 
 
 with DAG(
@@ -72,13 +81,13 @@ with DAG(
         ),
     )
 
-    manual_approval_required = EmptyOperator(
+    manual_approval_required = PythonSensor(
         task_id="manual_approval_required",
-        doc_md=(
-            "Review the candidate, evaluation report, and benchmark evidence. "
-            "Run the audited approval command manually after a human decision. "
-            "This DAG intentionally does not approve or promote models."
-        ),
+        python_callable=approval_is_granted,
+        poke_interval=60,
+        timeout=7 * 24 * 60 * 60,
+        mode="reschedule",
+        doc_md="Review evidence, then set Airflow Variable fd001_rul_approval_granted=true.",
     )
 
     (

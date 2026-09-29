@@ -23,6 +23,7 @@ htmlcov/
 
 # Environment variables
 .env
+.env.example
 
 # Local datasets
 data/raw/*
@@ -58,8 +59,10 @@ frontend/out/
 
 # Airflow local state
 airflow/logs/
+airflow/.local/
 airflow/airflow.cfg
 airflow/webserver_config.py
+.airflow-venv/
 
 # Local learning and publishing notes
 commands.md
