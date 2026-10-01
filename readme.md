@@ -27,6 +27,7 @@ path from trusted historical data to quality-aware streaming inference.
 | 10 | CI/CD and cloud deployment | Planned |
 | 11 | Load testing, security review, and final delivery | Planned |
 
+<!-- 
 Phase 6 completed with an approved LightGBM registry version, an audited `champion`
 alias, checksum-verified local caching, and a real FastAPI → Redpanda → consumer →
 PostgreSQL prediction using that champion.
@@ -53,6 +54,7 @@ approval, passed the Airflow approval sensor, and promoted the release
 `rul-airflow-monitoring-retraining-20261001T104503` to the `champion` alias.
 The inference worker was restarted and verified against the new champion.
 
+-->
 ## What is implemented
 
 ### Reproducible data foundation
