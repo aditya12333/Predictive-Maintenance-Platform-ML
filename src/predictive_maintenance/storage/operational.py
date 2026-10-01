@@ -16,10 +16,52 @@ from predictive_maintenance.api.contracts import (
     FleetEngineSummary,
     FleetHealthResponse,
     FleetHealthStatus,
+    OperationalSummaryResponse,
     PredictionHistoryResponse,
     PredictionView,
 )
 from predictive_maintenance.inference.contracts import DataQualityStatus, PredictionStatus
+
+
+def load_operational_summary(
+    engine: Engine,
+    *,
+    as_of: datetime,
+) -> OperationalSummaryResponse:
+    """Return aggregate persisted state for operators and monitoring surfaces."""
+
+    _require_aware_datetime(as_of)
+    statement = text(
+        """
+        SELECT
+            (SELECT count(*) FROM telemetry_event) AS telemetry_events_total,
+            (SELECT count(*) FROM pending_event) AS pending_events_total,
+            (SELECT count(*) FROM prediction) AS predictions_total,
+            (SELECT count(*) FROM prediction WHERE lower(status) = 'available')
+                AS available_predictions_total,
+            (SELECT count(*) FROM prediction WHERE lower(status) = 'degraded')
+                AS degraded_predictions_total,
+            (SELECT count(*) FROM prediction WHERE lower(status) = 'withheld')
+                AS withheld_predictions_total,
+            (SELECT count(*) FROM alert WHERE state IN ('OPEN', 'ACKNOWLEDGED')
+                AND resolved_at IS NULL) AS open_alerts_total,
+            (SELECT count(*) FROM data_quality_issue WHERE resolved_at IS NULL)
+                AS open_quality_issues_total
+        """
+    )
+    with engine.connect() as connection:
+        row = connection.execute(statement).mappings().one()
+    return OperationalSummaryResponse(
+        generated_at=as_of,
+        telemetry_events_total=int(row["telemetry_events_total"]),
+        pending_events_total=int(row["pending_events_total"]),
+        predictions_total=int(row["predictions_total"]),
+        available_predictions_total=int(row["available_predictions_total"]),
+        degraded_predictions_total=int(row["degraded_predictions_total"]),
+        withheld_predictions_total=int(row["withheld_predictions_total"]),
+        open_alerts_total=int(row["open_alerts_total"]),
+        open_quality_issues_total=int(row["open_quality_issues_total"]),
+    )
 
 
 def load_fleet_health(

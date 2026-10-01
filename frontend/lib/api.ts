@@ -72,6 +72,22 @@ export type EquipmentDetail = {
 
 export type PredictionHistory = { engine_id: number; items: Prediction[]; next_cursor: string | null };
 
+export type MonitoringCheck = {
+  name: string;
+  value: number;
+  status: "pass" | "warning" | "fail" | "no_data";
+  warning_threshold: number | null;
+  fail_threshold: number | null;
+};
+
+export type MonitoringReport = {
+  generated_at: string;
+  window_start: string;
+  window_end: string;
+  counts: Record<string, number>;
+  checks: MonitoringCheck[];
+};
+
 async function getApi<T>(path: string): Promise<T> {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
   const response = await fetch(`${baseUrl}${path}`, { cache: "no-store" });
@@ -89,4 +105,8 @@ export async function getEquipmentDetail(engineId: number): Promise<EquipmentDet
 
 export async function getPredictionHistory(engineId: number): Promise<PredictionHistory> {
   return getApi<PredictionHistory>(`/v1/equipment/${engineId}/predictions`);
+}
+
+export async function getMonitoringReport(): Promise<MonitoringReport> {
+  return getApi<MonitoringReport>("/v1/monitoring/report");
 }

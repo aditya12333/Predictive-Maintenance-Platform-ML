@@ -22,14 +22,36 @@ path from trusted historical data to quality-aware streaming inference.
 | 5 | Versioned features, model comparison, inference, and prediction persistence | Completed |
 | 6 | Model packaging, approval gates, experiment tracking, and registry lifecycle | Completed |
 | 7 | Alerts, operational APIs, and fleet dashboard | Completed |
-| 8 | Airflow orchestration | In progress: local DAG skeleton |
-| 9 | Monitoring and drift detection | Planned |
+| 8 | Airflow orchestration | Completed: local workflow verified |
+| 9 | Monitoring, retraining policy, and observability | Completed: local workflow verified |
 | 10 | CI/CD and cloud deployment | Planned |
 | 11 | Load testing, security review, and final delivery | Planned |
 
 Phase 6 completed with an approved LightGBM registry version, an audited `champion`
 alias, checksum-verified local caching, and a real FastAPI → Redpanda → consumer →
 PostgreSQL prediction using that champion.
+
+Phase 8 completed with a locally verified Airflow candidate pipeline. The workflow
+prepares data, trains and compares the four models, packages and registers a
+candidate, benchmarks it, and waits at an explicit human-approval sensor. Approval
+and promotion remain separate audited operations and are never performed by the
+DAG automatically.
+
+Phase 9 now has a locally verified observability baseline: structured logs,
+correlation IDs, Prometheus metrics, a Prometheus server, operational summaries,
+scheduled PostgreSQL monitoring reports, a monitoring API endpoint, and a
+dashboard monitoring panel. The current report evaluates persisted quality and
+prediction rates, includes a delayed-outcome model-performance check, and can
+calculate PSI feature drift from newly persisted sensor measurements. These
+checks return `no_data` until enough reference/current telemetry or labelled
+outcomes are available.
+
+The retraining path has also been exercised locally. A monitoring failure
+sequence triggered the Airflow candidate pipeline, which trained and registered
+LightGBM as MLflow version `5`, passed the serving benchmark, recorded human
+approval, passed the Airflow approval sensor, and promoted the release
+`rul-airflow-monitoring-retraining-20261001T104503` to the `champion` alias.
+The inference worker was restarted and verified against the new champion.
 
 ## What is implemented
 
@@ -105,6 +127,10 @@ PostgreSQL prediction using that champion.
   benchmarking.
 - The workflow stops at an explicit human-approval checkpoint; it never approves
   or promotes a model automatically.
+- Artifact names use the Airflow run ID, so same-day manual reruns cannot overwrite
+  immutable training runs or model releases.
+- The approval sensor uses reschedule mode and can pause for up to seven days while
+  an operator reviews the candidate evidence.
 
 ## Model results
 
@@ -127,9 +153,10 @@ evaluated once on the official 100-engine test set:
 | RMSE | 26.820 cycles |
 | NASA score | 8,065.366 |
 
-LightGBM release `rul-lightgbm-v1` is MLflow model `cmapss-fd001-rul` version `1`.
-It is provisionally approved and holds the `champion` alias. Its limits must be
-reviewed when domain-owner requirements are available.
+The initial LightGBM release `rul-lightgbm-v1` was MLflow model
+`cmapss-fd001-rul` version `1`. The current champion is the retrained release
+`rul-airflow-monitoring-retraining-20261001T104503`, MLflow version `5`. The
+provisional limits must be reviewed when domain-owner requirements are available.
 
 ## Runtime contracts
 
@@ -317,6 +344,35 @@ export PM_INFERENCE_MODEL_SOURCE=none
 .venv/bin/pm-platform stream worker
 ```
 
+The worker exposes its process-local Prometheus metrics at
+`http://127.0.0.1:9101/metrics` by default. The API exposes its own metrics at
+`http://127.0.0.1:8000/metrics`; each process must be scraped separately or
+combined by the deployment's metrics collector.
+
+Start the local Prometheus dashboard with:
+
+```bash
+docker compose up -d prometheus
+```
+
+Open <http://127.0.0.1:9090>. The `predictive-maintenance-api` and
+`predictive-maintenance-worker` targets should become `UP`. When scraping from
+the Docker container, start the host processes on `0.0.0.0` so the container can
+reach them:
+
+```bash
+# API terminal
+.venv/bin/uvicorn predictive_maintenance.api.app:app --host 0.0.0.0 --port 8000
+
+# Worker terminal
+PM_WORKER_METRICS_HOST=0.0.0.0 .venv/bin/pm-platform stream worker
+```
+
+Use the Prometheus query page to inspect metrics such as
+`pm_api_requests_total`, `pm_stream_events_total`, and
+`pm_consumer_lag_records`. This local setup uses Prometheus's built-in query
+view; Grafana can be added later if a richer dashboard is needed.
+
 To serve the approved MLflow champion, start MLflow and configure:
 
 ```bash
@@ -348,7 +404,7 @@ Phase 6 completion evidence:
 Ruff passed
 Strict Mypy passed for 44 source files
 PostgreSQL migration: 0004_prediction_lineage (head)
-MLflow champion: cmapss-fd001-rul version 1 / rul-lightgbm-v1
+MLflow champion: cmapss-fd001-rul version 5 / rul-airflow-monitoring-retraining-20261001T104503
 Real streaming path: FastAPI → Redpanda → champion inference → PostgreSQL
 ```
 
@@ -370,6 +426,7 @@ Live dashboard routes and alert workflows verified
 - [Phase 4: Streaming reliability and data quality](docs/phases/04-streaming-reliability-and-data-quality.md)
 - [Phase 5: Feature generation, RUL modelling, and inference](docs/phases/05-feature-generation-model-training-and-inference.md)
 - [Delivery roadmap](docs/project-roadmap.md)
+- [End-to-end command runbook](docs/end-to-end-command-runbook.md)
 
 The detailed Phase 6 record, daily checkpoints, presentation runbook, and LinkedIn
 draft are maintained locally and excluded from Git as personal working notes.
@@ -379,13 +436,13 @@ draft are maintained locally and excluded from Git as personal working notes.
 The repository does not yet include:
 
 - Failure-risk classification, alert thresholds, and classification metrics.
-- Airflow orchestration.
-- Production monitoring and drift detection.
 - CI/CD or cloud deployment.
 
 These are shown as planned work rather than current system outputs.
 
 ## Next phase
 
-Phase 7 is complete. The next phase is Airflow orchestration for training and
-batch workflows.
+Phase 9 is complete for the local platform baseline, including monitoring-driven
+candidate retraining, human approval, promotion, and champion-backed inference.
+Production-scale drift thresholds, labelled outcomes, CI/CD, and cloud
+deployment remain future work. Phase 10 will address CI/CD and cloud deployment.

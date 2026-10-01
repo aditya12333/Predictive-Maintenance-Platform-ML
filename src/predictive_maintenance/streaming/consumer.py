@@ -1,6 +1,7 @@
 """Kafka-compatible telemetry consumption with manual acknowledgements."""
 
 import json
+import logging
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -8,7 +9,7 @@ from enum import StrEnum
 from functools import partial
 from typing import TypeVar
 
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, TopicPartition
 from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlalchemy.exc import OperationalError
@@ -16,6 +17,14 @@ from sqlalchemy.exc import OperationalError
 from predictive_maintenance.api.app import TelemetryRequest, _payload_digest
 from predictive_maintenance.core.settings import PlatformSettings
 from predictive_maintenance.inference.processor import TransactionalInferenceProcessor
+from predictive_maintenance.monitoring.logging import reset_correlation_id, set_correlation_id
+from predictive_maintenance.monitoring.metrics import (
+    CONSUMER_LAG,
+    DEAD_LETTER_MESSAGES,
+    STREAM_EVENTS,
+    STREAM_PROCESSING_LATENCY,
+    STREAM_RETRIES,
+)
 from predictive_maintenance.storage.alerts import AlertPolicy
 from predictive_maintenance.storage.database import (
     TelemetryEventRecord,
@@ -28,6 +37,8 @@ from predictive_maintenance.storage.database import (
 from predictive_maintenance.streaming.producer import TelemetryProducer
 from predictive_maintenance.streaming.reorder import EventTimeReorderBuffer
 
+logger = logging.getLogger(__name__)
+
 
 class ConsumerResult(StrEnum):
     NO_MESSAGE = "no_message"
@@ -37,6 +48,37 @@ class ConsumerResult(StrEnum):
 
 
 OperationResult = TypeVar("OperationResult")
+
+
+def _message_correlation_id(message: object) -> str | None:
+    """Read the correlation header without making broker headers mandatory."""
+
+    headers = getattr(message, "headers", None)
+    if not callable(headers):
+        return None
+    values = headers() or []
+    for name, value in reversed(values):
+        if name == "x-correlation-id" and isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        if name == "x-correlation-id" and isinstance(value, str):
+            return value
+    return None
+
+
+def _observe_consumer_lag(consumer: Consumer, message: object) -> None:
+    """Observe record lag when broker watermark information is available."""
+
+    try:
+        topic = message.topic()  # type: ignore[attr-defined]
+        partition = message.partition()  # type: ignore[attr-defined]
+        offset = message.offset()  # type: ignore[attr-defined]
+        high_watermark = consumer.get_watermark_offsets(
+            TopicPartition(topic, partition), timeout=0.1
+        )[1]
+        if high_watermark >= 0 and offset >= 0:
+            CONSUMER_LAG.set(max(high_watermark - offset - 1, 0))
+    except Exception:
+        logger.debug("consumer lag is unavailable", exc_info=True)
 
 
 class TelemetryConsumer:
@@ -101,6 +143,7 @@ class TelemetryConsumer:
             except (ConnectionError, OperationalError, TimeoutError):
                 if attempts >= self._settings.max_retry_attempts:
                     raise
+                STREAM_RETRIES.inc()
                 delay = self._settings.retry_backoff_seconds * (2**attempts)
                 attempts += 1
                 time.sleep(delay)
@@ -178,10 +221,13 @@ class TelemetryConsumer:
     def consume_once(self, timeout: float = 5.0) -> ConsumerResult:
         """Process one event; return None when no message arrives before timeout."""
 
+        recovery_started = time.perf_counter()
         recovered_before_poll = self.recover_pending()
         message = self._consumer.poll(timeout)
         if message is None:
             if recovered_before_poll:
+                STREAM_EVENTS.labels(ConsumerResult.PROCESSED.value).inc(recovered_before_poll)
+                STREAM_PROCESSING_LATENCY.observe(time.perf_counter() - recovery_started)
                 return ConsumerResult.PROCESSED
             return ConsumerResult.NO_MESSAGE
         if message.error() is not None:
@@ -205,6 +251,8 @@ class TelemetryConsumer:
                 },
             )
             self._consumer.commit(message=message, asynchronous=False)
+            DEAD_LETTER_MESSAGES.labels(type(error).__name__).inc()
+            STREAM_EVENTS.labels(ConsumerResult.DEAD_LETTERED.value).inc()
             return ConsumerResult.DEAD_LETTERED
         record = TelemetryEventRecord(
             event_id=event.event_id,
@@ -216,14 +264,33 @@ class TelemetryConsumer:
             source_id=event.source_id,
             payload_digest=_payload_digest(event),
             payload=payload,
+            correlation_id=_message_correlation_id(message),
         )
-        self._process_with_retry(lambda: persist_pending_event(self._engine, record))
-        self._consumer.commit(message=message, asynchronous=False)
-        recovered_after_poll = self.recover_pending()
-        if recovered_before_poll or recovered_after_poll:
-            return ConsumerResult.PROCESSED
+        _observe_consumer_lag(self._consumer, message)
+        token = set_correlation_id(record.correlation_id)
+        started = time.perf_counter()
+        try:
+            logger.info(
+                "telemetry event received from broker",
+                extra={
+                    "event_id": event.event_id,
+                    "engine_id": event.engine_id,
+                    "cycle": event.cycle,
+                },
+            )
+            self._process_with_retry(lambda: persist_pending_event(self._engine, record))
+            self._consumer.commit(message=message, asynchronous=False)
+            recovered_after_poll = self.recover_pending()
+            recovered_count = recovered_before_poll + recovered_after_poll
+            if recovered_count:
+                STREAM_EVENTS.labels(ConsumerResult.PROCESSED.value).inc(recovered_count)
+                return ConsumerResult.PROCESSED
 
-        return ConsumerResult.BUFFERED
+            STREAM_EVENTS.labels(ConsumerResult.BUFFERED.value).inc()
+            return ConsumerResult.BUFFERED
+        finally:
+            STREAM_PROCESSING_LATENCY.observe(time.perf_counter() - started)
+            reset_correlation_id(token)
 
     def close(self) -> None:
         """Leave the consumer group cleanly."""

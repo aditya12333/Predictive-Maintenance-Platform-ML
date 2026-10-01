@@ -21,10 +21,12 @@ data_app = typer.Typer(help="Acquire and prepare versioned datasets.")
 config_app = typer.Typer(help="Inspect and validate runtime configuration.")
 stream_app = typer.Typer(help="Consume and process telemetry events.")
 model_app = typer.Typer(help="Train and inspect versioned RUL models.")
+monitoring_app = typer.Typer(help="Run operational monitoring checks.")
 app.add_typer(data_app, name="data")
 app.add_typer(config_app, name="config")
 app.add_typer(stream_app, name="stream")
 app.add_typer(model_app, name="model")
+app.add_typer(monitoring_app, name="monitoring")
 
 
 def _load_settings_or_exit() -> PlatformSettings:
@@ -58,6 +60,64 @@ def check_config() -> None:
     typer.echo(f"MLflow registered model: {settings.mlflow_registered_model_name}")
     typer.echo(f"Inference model source: {settings.inference_model_source}")
     typer.echo(f"Model cache: {settings.model_cache_root.resolve()}")
+
+
+@monitoring_app.command("run")
+def run_monitoring(
+    output_path: Annotated[
+        Path,
+        typer.Option(help="JSON report destination."),
+    ] = Path("artifacts/monitoring/latest.json"),
+    window_hours: Annotated[
+        int,
+        typer.Option(help="Trailing database window to evaluate in hours."),
+    ] = 24,
+) -> None:
+    """Evaluate persisted quality and prediction rates for a time window."""
+
+    from predictive_maintenance.monitoring.job import run_monitoring_job
+
+    settings = _load_settings_or_exit()
+    try:
+        report_path = run_monitoring_job(
+            settings,
+            output_path=output_path,
+            window_hours=window_hours,
+        )
+    except (OSError, ValueError) as error:
+        typer.echo(f"Monitoring failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"Monitoring report: {report_path.resolve()}")
+
+
+@monitoring_app.command("record-outcome")
+def record_outcome(
+    prediction_id: Annotated[int, typer.Option(help="Prediction row being evaluated.")],
+    actual_rul_cycles: Annotated[float, typer.Option(help="Observed RUL in operating cycles.")],
+    source: Annotated[str, typer.Option(help="Outcome source, such as maintenance-system.")],
+) -> None:
+    """Record a delayed observed RUL outcome for model-performance monitoring."""
+
+    from datetime import UTC, datetime
+
+    from predictive_maintenance.storage.model_performance import record_prediction_outcome
+
+    settings = _load_settings_or_exit()
+    engine = create_database_engine(settings)
+    try:
+        record_prediction_outcome(
+            engine,
+            prediction_id=prediction_id,
+            actual_rul_cycles=actual_rul_cycles,
+            observed_at=datetime.now(UTC),
+            source=source,
+        )
+    except ValueError as error:
+        typer.echo(f"Outcome rejected: {error}", err=True)
+        raise typer.Exit(code=2) from error
+    finally:
+        engine.dispose()
+    typer.echo(f"Recorded outcome for prediction {prediction_id}.")
 
 
 @data_app.command("download")
@@ -138,9 +198,15 @@ def run_worker(
     ] = None,
 ) -> None:
     """Run the telemetry consumer continuously or for a bounded test session."""
+    from prometheus_client import start_http_server
+
     from predictive_maintenance.streaming.consumer import TelemetryConsumer
 
     settings = _load_settings_or_exit()
+    start_http_server(settings.worker_metrics_port, addr=settings.worker_metrics_host)
+    typer.echo(
+        f"Worker metrics: http://{settings.worker_metrics_host}:{settings.worker_metrics_port}/metrics"
+    )
     engine = create_database_engine(settings)
     consumer = TelemetryConsumer(settings, engine)
     try:

@@ -48,5 +48,21 @@ services:
       retries: 12
       start_period: 15s
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - pm-prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+
 volumes:
   pm-postgres-data:
+  pm-prometheus-data:

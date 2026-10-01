@@ -1,6 +1,8 @@
 """HTTP ingestion API for telemetry events."""
 
 import json
+import logging
+import time
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Annotated
@@ -9,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Path, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import Engine, text
+from starlette.responses import Response
 
 from predictive_maintenance.api.contracts import (
     AlertListResponse,
@@ -17,10 +20,26 @@ from predictive_maintenance.api.contracts import (
     AlertView,
     EquipmentDetailResponse,
     FleetHealthResponse,
+    MonitoringReportResponse,
+    OperationalSummaryResponse,
     PredictionHistoryResponse,
 )
 from predictive_maintenance.core.settings import load_settings
 from predictive_maintenance.data.contracts import TELEMETRY_SCHEMA_VERSION
+from predictive_maintenance.monitoring.logging import (
+    CORRELATION_ID_HEADER,
+    configure_logging,
+    get_correlation_id,
+    reset_correlation_id,
+    set_correlation_id,
+)
+from predictive_maintenance.monitoring.metrics import (
+    API_REQUEST_LATENCY,
+    API_REQUESTS,
+    TELEMETRY_RECEIPTS,
+    render_metrics,
+)
+from predictive_maintenance.monitoring.report import load_monitoring_report
 from predictive_maintenance.storage.alerts import (
     AlertNotFoundError,
     AlertVersionConflictError,
@@ -38,9 +57,12 @@ from predictive_maintenance.storage.operational import (
     load_alerts,
     load_equipment_detail,
     load_fleet_health,
+    load_operational_summary,
     load_prediction_history,
 )
 from predictive_maintenance.streaming.producer import RedpandaEventSink
+
+logger = logging.getLogger(__name__)
 
 
 class TelemetryRequest(BaseModel):
@@ -99,6 +121,7 @@ def create_app(
         allow_headers=["Content-Type"],
     )
     settings = load_settings()
+    configure_logging(settings.log_level)
     database_engine = engine or create_database_engine(settings)
     event_sink = sink
     if event_sink is None:
@@ -108,11 +131,46 @@ def create_app(
             else PostgresEventSink(database_engine)
         )
 
+    @app.middleware("http")
+    async def request_observability(request: Request, call_next):  # type: ignore[no-untyped-def]
+        supplied = request.headers.get(CORRELATION_ID_HEADER, "").strip()
+        correlation_id = supplied[:128] if supplied else None
+        token = set_correlation_id(correlation_id)
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+            duration_ms = (time.perf_counter() - started) * 1000
+            API_REQUESTS.labels(request.method, str(response.status_code)).inc()
+            API_REQUEST_LATENCY.observe(duration_ms / 1000)
+            logger.info(
+                "http request completed",
+                extra={"status_code": response.status_code, "duration_ms": round(duration_ms, 3)},
+            )
+            response.headers[CORRELATION_ID_HEADER] = get_correlation_id() or ""
+            return response
+        except Exception:
+            duration_ms = (time.perf_counter() - started) * 1000
+            logger.exception(
+                "http request failed",
+                extra={"status_code": 500, "duration_ms": round(duration_ms, 3)},
+            )
+            API_REQUESTS.labels(request.method, "500").inc()
+            API_REQUEST_LATENCY.observe(duration_ms / 1000)
+            raise
+        finally:
+            reset_correlation_id(token)
+
     @app.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
         """Liveness probe: the API process is running."""
 
         return {"status": "ok"}
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics() -> Response:
+        """Expose Prometheus-compatible service and application metrics."""
+
+        return Response(content=render_metrics(), media_type="text/plain; version=0.0.4")
 
     @app.get("/ready", tags=["operations"])
     def ready() -> dict[str, str]:
@@ -138,6 +196,34 @@ def create_app(
             as_of=datetime.now(UTC),
             stale_after=timedelta(seconds=settings.dashboard_stale_after_seconds),
         )
+
+    @app.get(
+        "/v1/operations/summary",
+        response_model=OperationalSummaryResponse,
+        tags=["operations"],
+    )
+    def operations_summary() -> OperationalSummaryResponse:
+        """Return aggregate persisted state for operators and dashboards."""
+
+        return load_operational_summary(database_engine, as_of=datetime.now(UTC))
+
+    @app.get(
+        "/v1/monitoring/report",
+        response_model=MonitoringReportResponse,
+        tags=["operations"],
+    )
+    def monitoring_report() -> MonitoringReportResponse:
+        """Return the latest Airflow-generated monitoring report."""
+
+        try:
+            return load_monitoring_report(settings.monitoring_report_path)
+        except FileNotFoundError as error:
+            raise HTTPException(
+                status_code=404,
+                detail="monitoring report is not available",
+            ) from error
+        except ValueError as error:
+            raise HTTPException(status_code=503, detail="monitoring report is invalid") from error
 
     @app.get(
         "/v1/equipment/{engine_id}",
@@ -222,8 +308,12 @@ def create_app(
         tags=["telemetry"],
     )
     def ingest_telemetry(event: TelemetryRequest, request: Request) -> TelemetryReceipt:
-        del request  # Reserved for trace/request correlation in the next slice.
+        del request
         ingestion_timestamp = datetime.now(UTC)
+        logger.info(
+            "telemetry accepted for durable persistence",
+            extra={"event_id": event.event_id, "engine_id": event.engine_id, "cycle": event.cycle},
+        )
         outcome = event_sink.persist(
             TelemetryEventRecord(
                 event_id=event.event_id,
@@ -235,8 +325,10 @@ def create_app(
                 source_id=event.source_id,
                 payload_digest=_payload_digest(event),
                 payload=event.model_dump(mode="json"),
+                correlation_id=get_correlation_id(),
             ),
         )
+        TELEMETRY_RECEIPTS.labels(outcome.value).inc()
         return TelemetryReceipt(
             event_id=event.event_id,
             status="RECEIVED",

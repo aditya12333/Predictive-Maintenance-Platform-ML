@@ -50,6 +50,7 @@ class TelemetryEventRecord:
     source_id: str
     payload_digest: str
     payload: dict[str, Any] | None = None
+    correlation_id: str | None = None
 
 
 class DurableEventSink(Protocol):
@@ -78,10 +79,10 @@ def persist_telemetry_event_transaction(
         """
         INSERT INTO telemetry_event (
             event_id, engine_id, cycle, event_timestamp, ingestion_timestamp,
-            schema_version, source_id, payload_digest, quality_status
+            schema_version, source_id, payload_digest, quality_status, measurements
         ) VALUES (
             :event_id, :engine_id, :cycle, :event_timestamp, :ingestion_timestamp,
-            :schema_version, :source_id, :payload_digest, :quality_status
+            :schema_version, :source_id, :payload_digest, :quality_status, :measurements
         )
         ON CONFLICT (event_id) DO NOTHING
         RETURNING event_id
@@ -141,6 +142,9 @@ def persist_telemetry_event_transaction(
             "source_id": event.source_id,
             "payload_digest": event.payload_digest,
             "quality_status": "DEGRADED" if is_degraded else "VALID",
+            "measurements": Jsonb(
+                event.payload.get("measurements", {}) if event.payload is not None else {}
+            ),
         },
     ).scalar_one_or_none()
 

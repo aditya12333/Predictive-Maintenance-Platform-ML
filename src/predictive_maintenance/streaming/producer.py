@@ -6,6 +6,7 @@ from typing import Any
 from confluent_kafka import Producer
 
 from predictive_maintenance.core.settings import PlatformSettings
+from predictive_maintenance.monitoring.logging import get_correlation_id
 from predictive_maintenance.storage.database import (
     EventPersistenceOutcome,
     TelemetryEventRecord,
@@ -26,7 +27,14 @@ class TelemetryProducer:
             }
         )
 
-    def publish(self, *, event_id: str, engine_id: int, payload: dict[str, Any]) -> None:
+    def publish(
+        self,
+        *,
+        event_id: str,
+        engine_id: int,
+        payload: dict[str, Any],
+        correlation_id: str | None = None,
+    ) -> None:
         """Publish one event and wait for broker acknowledgement."""
 
         delivery_error: list[Exception] = []
@@ -39,6 +47,11 @@ class TelemetryProducer:
             self._topic,
             key=str(engine_id),
             value=json.dumps(payload, separators=(",", ":")),
+            headers=(
+                [("x-correlation-id", correlation_id.encode("utf-8"))]
+                if correlation_id
+                else None
+            ),
             on_delivery=on_delivery,
         )
         undelivered = self._producer.flush()
@@ -91,7 +104,12 @@ class RedpandaEventSink:
             "source_id": event.source_id,
             "payload_digest": event.payload_digest,
         }
-        self._producer.publish(event_id=event.event_id, engine_id=event.engine_id, payload=payload)
+        self._producer.publish(
+            event_id=event.event_id,
+            engine_id=event.engine_id,
+            payload=payload,
+            correlation_id=event.correlation_id or get_correlation_id(),
+        )
         return EventPersistenceOutcome.INSERTED
 
     def close(self) -> None:

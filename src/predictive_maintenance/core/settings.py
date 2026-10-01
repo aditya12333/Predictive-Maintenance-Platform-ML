@@ -54,6 +54,9 @@ class PlatformSettings(BaseSettings):
     inference_model_source: InferenceModelSource = "none"
     approved_model_manifest_path: Path | None = None
     model_cache_root: Path = Path("artifacts/model-cache")
+    monitoring_report_path: Path = Path("artifacts/monitoring/latest.json")
+    monitoring_baseline_mae_cycles: float = Field(default=19.44735104577393, gt=0)
+    monitoring_minimum_labelled_samples: int = Field(default=100, gt=0)
     mlflow_tracking_uri: str | None = None
     mlflow_experiment_name: str = Field(default="cmapss-fd001-rul", min_length=1)
     mlflow_registered_model_name: str = Field(default="cmapss-fd001-rul", min_length=1)
@@ -65,6 +68,17 @@ class PlatformSettings(BaseSettings):
         default="telemetry.events.dlq",
         min_length=1,
         description="Topic for messages that cannot be processed after retries",
+    )
+    worker_metrics_host: str = Field(
+        default="127.0.0.1",
+        min_length=1,
+        description="Address for the telemetry worker Prometheus endpoint",
+    )
+    worker_metrics_port: int = Field(
+        default=9101,
+        ge=1,
+        le=65535,
+        description="Port for the telemetry worker Prometheus endpoint",
     )
     reorder_idle_flush_seconds: float = Field(
         default=300.0,

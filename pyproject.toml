@@ -16,6 +16,7 @@ dependencies = [
     "mlflow>=3.7,<4",
     "numpy>=2,<2.4",
     "polars>=1.32,<2",
+    "prometheus-client>=0.21,<1",
     "pydantic>=2.10,<3",
     "pydantic-settings>=2.7,<3",
     "scikit-learn>=1.6,<2",

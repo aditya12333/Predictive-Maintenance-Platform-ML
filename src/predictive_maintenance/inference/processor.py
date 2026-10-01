@@ -9,6 +9,7 @@ from predictive_maintenance.inference.artifacts import load_approved_manifest
 from predictive_maintenance.inference.contracts import DataQualityStatus, InferenceInput
 from predictive_maintenance.inference.sklearn_predictor import SklearnRULPredictor
 from predictive_maintenance.inference.worker import InferenceWorker
+from predictive_maintenance.monitoring.metrics import PERSISTENCE_OUTCOMES, PREDICTION_OUTCOMES
 from predictive_maintenance.storage.alerts import (
     AlertPolicy,
     persist_prediction_alerts_transaction,
@@ -113,6 +114,7 @@ class TransactionalInferenceProcessor:
                 event,
                 quality_flags=quality_flags,
             )
+            PERSISTENCE_OUTCOMES.labels("telemetry", telemetry_result.outcome.value).inc()
             if telemetry_result.outcome is EventPersistenceOutcome.CONFLICT:
                 return EventProcessingResult(
                     telemetry_outcome=telemetry_result.outcome,
@@ -136,6 +138,8 @@ class TransactionalInferenceProcessor:
             )
             prediction = self._worker.process(inference_input)
             prediction_outcome = persist_prediction_transaction(connection, prediction)
+            PERSISTENCE_OUTCOMES.labels("prediction", prediction_outcome.value).inc()
+            PREDICTION_OUTCOMES.labels(prediction.status.value).inc()
             if prediction_outcome is PredictionPersistenceOutcome.CONFLICT:
                 raise PredictionPersistenceError(
                     f"stored prediction conflicts with event {event.event_id}"

@@ -23,10 +23,14 @@ Completed:
 - Phase 6: Immutable model packaging, MLflow experiments and registry, explicit
   approval and promotion, serving benchmarks, champion resolution, verified local
   caching, and real streaming inference with the promoted LightGBM release.
+- Phase 7: Operational APIs, alert lifecycle workflows, and the Next.js fleet
+  dashboard.
+- Phase 8: Local Airflow orchestration for repeatable training, candidate
+  registration, serving benchmarks, manual approval gating, reruns, and recovery.
 
 Next:
 
-- Phase 8: orchestrate training and batch workflows with Airflow.
+- Phase 9: monitoring and observability.
 
 The exact daily checkpoint is maintained in
 `docs/daily-progress.md`.
@@ -89,7 +93,11 @@ Estimated duration: 4–6 focused days.
 - Explain how Airflow differs from the always-on telemetry consumer.
 - Support manual reruns and failure recovery.
 
-### Phase 9: Monitoring and observability
+Completed locally. The development runtime uses a separate Airflow virtual
+environment and SQLite metadata database. Production deployment still requires
+an external Airflow metadata database, executor, secrets, and deployment platform.
+
+### Phase 9: Monitoring and observability — Completed locally
 
 Estimated duration: 4–6 focused days.
 
@@ -99,6 +107,15 @@ Estimated duration: 4–6 focused days.
 - Model performance and drift checks.
 - Health and readiness endpoints.
 - Dashboard-facing operational status summaries.
+
+Local baseline completed: structured logs, correlation IDs, Prometheus metrics,
+Prometheus scraping, operational summaries, scheduled PostgreSQL monitoring
+reports, monitoring API output, dashboard display, feature drift checks, and
+outcome-based model performance checks are verified. A repeated model-performance
+failure was used to trigger the Airflow candidate pipeline. The candidate was
+registered as MLflow version 5, benchmarked, manually approved, promoted to the
+`champion` alias, and loaded by the restarted inference worker. Production-scale
+threshold calibration and deployment remain future work.
 
 ### Phase 10: Production deployment and CI/CD
 

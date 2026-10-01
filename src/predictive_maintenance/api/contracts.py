@@ -176,6 +176,46 @@ class FleetHealthResponse(BaseModel):
         return self
 
 
+class OperationalSummaryResponse(BaseModel):
+    """Aggregate service state for monitoring and dashboard summaries."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    generated_at: datetime
+    telemetry_events_total: int = Field(ge=0)
+    pending_events_total: int = Field(ge=0)
+    predictions_total: int = Field(ge=0)
+    available_predictions_total: int = Field(ge=0)
+    degraded_predictions_total: int = Field(ge=0)
+    withheld_predictions_total: int = Field(ge=0)
+    open_alerts_total: int = Field(ge=0)
+    open_quality_issues_total: int = Field(ge=0)
+
+
+class MonitoringCheckView(BaseModel):
+    """One scheduled monitoring result exposed to operational clients."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    value: float
+    status: str = Field(min_length=1)
+    warning_threshold: float | None = None
+    fail_threshold: float | None = None
+
+
+class MonitoringReportResponse(BaseModel):
+    """Latest scheduled monitoring report."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    generated_at: datetime
+    window_start: datetime
+    window_end: datetime
+    counts: dict[str, int]
+    checks: list[MonitoringCheckView]
+
+
 class EquipmentDetailResponse(BaseModel):
     """Evidence and active operational state for one engine."""
 

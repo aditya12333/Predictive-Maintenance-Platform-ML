@@ -2,23 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { FleetTable } from "@/components/fleet-table";
-import { getFleetHealth, type FleetHealth, type HealthStatus } from "@/lib/api";
+import { MonitoringPanel } from "@/components/monitoring-panel";
+import { getFleetHealth, getMonitoringReport, type FleetHealth, type HealthStatus, type MonitoringReport } from "@/lib/api";
 
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone: HealthStatus }) {
   return <article className="summary-card"><div className={`summary-icon icon-${tone}`} /><div><p>{label}</p><strong>{value}</strong></div></article>;
 }
 
-export function FleetDashboard({ initialFleet }: { initialFleet: FleetHealth }) {
+export function FleetDashboard({ initialFleet, initialMonitoring }: { initialFleet: FleetHealth; initialMonitoring: MonitoringReport | null }) {
   const [fleet, setFleet] = useState(initialFleet);
   const [lastUpdated, setLastUpdated] = useState(new Date(initialFleet.generated_at));
   const [refreshing, setRefreshing] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [monitoring, setMonitoring] = useState(initialMonitoring);
 
   async function refresh() {
     setRefreshing(true);
     try {
       const nextFleet = await getFleetHealth();
+      const nextMonitoring = await getMonitoringReport();
       setFleet(nextFleet);
+      setMonitoring(nextMonitoring);
       setLastUpdated(new Date(nextFleet.generated_at));
       setConnectionError(null);
     } catch {
@@ -48,6 +52,7 @@ export function FleetDashboard({ initialFleet }: { initialFleet: FleetHealth }) 
         {connectionError && <div className="connection-error" role="status">{connectionError}</div>}
         <FleetTable engines={fleet.engines} />
       </section>
+      <MonitoringPanel report={monitoring} />
     </>
   );
 }

@@ -7,8 +7,10 @@ from alembic.script import ScriptDirectory
 def test_migrations_form_one_complete_chain() -> None:
     script = ScriptDirectory.from_config(Config("alembic.ini"))
 
-    assert script.get_heads() == ["0007_alert_deduplication"]
+    assert script.get_heads() == ["0009_telemetry_measurements"]
     assert [revision.revision for revision in script.walk_revisions()] == [
+        "0009_telemetry_measurements",
+        "0008_prediction_outcomes",
         "0007_alert_deduplication",
         "0006_alert_severity_fix",
         "0005_alert_lifecycle",
