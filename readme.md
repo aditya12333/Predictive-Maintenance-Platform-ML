@@ -132,6 +132,19 @@ The inference worker was restarted and verified against the new champion.
 - The approval sensor uses reschedule mode and can pause for up to seven days while
   an operator reviews the candidate evidence.
 
+### Monitoring and retraining
+
+- Structured JSON logging with correlation IDs for API and streaming operations.
+- Prometheus metrics for API requests, processing latency, retries, stream outcomes,
+  persistence outcomes, prediction states, and consumer lag.
+- PostgreSQL monitoring reports for quality-issue rate, prediction availability,
+  degraded/withheld rates, model-performance degradation, and feature PSI drift.
+- Monitoring report API and dashboard panel for operational checks.
+- Retraining policy requiring two consecutive failed monitoring windows before a
+  candidate run is requested.
+- Airflow candidate retraining workflow with a manual approval sensor.
+- Audited MLflow approval and promotion, followed by champion-backed inference.
+
 ## Model results
 
 The four candidates used the same engine-level validation split and feature
@@ -225,6 +238,9 @@ failure date.
 | Testing and quality | Pytest, Ruff, strict Mypy |
 | Local infrastructure | Docker Compose |
 | Experiment and model lifecycle | MLflow |
+| Workflow orchestration | Apache Airflow |
+| Metrics and monitoring | Prometheus, structured JSON logs |
+| Dashboard | Next.js, React, TypeScript |
 
 ## Repository structure
 
@@ -274,7 +290,7 @@ docker compose up -d postgres redpanda
 Expected database revision:
 
 ```text
-0004_prediction_lineage (head)
+latest Alembic revision (currently 0009_telemetry_measurements)
 ```
 
 ### Prepare FD001
@@ -411,7 +427,7 @@ Real streaming path: FastAPI → Redpanda → champion inference → PostgreSQL
 Phase 7 completion evidence:
 
 ```text
-191 tests passed, including PostgreSQL integration tests
+203 tests passed, including PostgreSQL integration tests (12 skipped)
 Ruff passed
 Strict Mypy passed for 47 source files
 Next.js production build passed
@@ -425,8 +441,10 @@ Live dashboard routes and alert workflows verified
 - [Phase 3: Production architecture](docs/phases/03-production-architecture.md)
 - [Phase 4: Streaming reliability and data quality](docs/phases/04-streaming-reliability-and-data-quality.md)
 - [Phase 5: Feature generation, RUL modelling, and inference](docs/phases/05-feature-generation-model-training-and-inference.md)
-<!-- - [Delivery roadmap](docs/project-roadmap.md)-->
-<!-- - [End-to-end command runbook](docs/end-to-end-command-runbook.md)-->
+
+<!-- 
+- [Delivery roadmap](docs/project-roadmap.md)
+- [End-to-end command runbook](docs/end-to-end-command-runbook.md)-->
 
 
 ## Current boundaries
