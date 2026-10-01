@@ -425,11 +425,9 @@ Live dashboard routes and alert workflows verified
 - [Phase 3: Production architecture](docs/phases/03-production-architecture.md)
 - [Phase 4: Streaming reliability and data quality](docs/phases/04-streaming-reliability-and-data-quality.md)
 - [Phase 5: Feature generation, RUL modelling, and inference](docs/phases/05-feature-generation-model-training-and-inference.md)
-- [Delivery roadmap](docs/project-roadmap.md)
-- [End-to-end command runbook](docs/end-to-end-command-runbook.md)
+<!-- - [Delivery roadmap](docs/project-roadmap.md)-->
+<!-- - [End-to-end command runbook](docs/end-to-end-command-runbook.md)-->
 
-The detailed Phase 6 record, daily checkpoints, presentation runbook, and LinkedIn
-draft are maintained locally and excluded from Git as personal working notes.
 
 ## Current boundaries
 
