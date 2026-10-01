@@ -353,6 +353,62 @@ history, data-quality issues, and alert actions.
 
 ![Equipment detail dashboard](assets/screenshots/equipment-detail-dashboard.png)
 
+## Inference Pipeline
+
+Our real-time inference flow is:
+
+- Telemetry event
+  - FastAPI validation
+  - Redpanda durable stream
+  - Consumer
+  - Duplicate/conflict checks
+  - Event-time ordering
+  - FeatureBuilder
+  - Verified MLflow champion model
+  - RUL prediction
+  - `max(0, prediction)` post-processing
+  - Quality/state classification
+  - PostgreSQL transaction
+  - API and dashboard
+
+Specifically, implemented:
+
+1. **Input validation**  
+   FastAPI validates the telemetry envelope and schema.
+
+2. **Durable event transport**  
+   Redpanda buffers incoming telemetry so events are not lost if the worker restarts.
+
+3. **Ordering and reliability**  
+   The worker handles duplicates, conflicting events, delayed events, missing cycles, retries, and dead-letter cases.
+
+4. **Feature construction**  
+   FeatureBuilder creates the versioned `features-v1` vector:
+
+   `cycle + sensor_1 ... sensor_21`
+
+5. **Model loading**  
+   The worker resolves the MLflow champion alias, verifies approval and promotion evidence, checks artifact hashes, and caches the verified model locally.
+
+6. **Prediction**  
+   The LightGBM model produces an estimated RUL.
+
+7. **Post-processing**  
+   Negative RUL predictions are clipped to zero.
+
+8. **Quality-aware result states**  
+   Predictions are classified as `AVAILABLE`, `DEGRADED`, or `WITHHELD`.
+
+9. **Persistence**  
+   Telemetry and predictions are stored transactionally in PostgreSQL.
+
+10. **Operational output**  
+    The API and dashboard expose the latest RUL, health status, quality flags, alerts, and prediction history.
+
+The current inference pipeline is therefore near-real-time inference, not batch
+inference. It is near-real-time because the event-ordering window may briefly wait
+for delayed events before scoring.
+
 ### Run the stream consumer
 
 The consumer can run without inference by setting:
