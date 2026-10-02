@@ -16,7 +16,7 @@ services:
       - --workers
       - "1"
       - --allowed-hosts
-      - "mlflow,localhost,127.0.0.1"
+      - "*"
     volumes:
       - ./artifacts/mlflow:/app/mlflow:ro
     healthcheck:
