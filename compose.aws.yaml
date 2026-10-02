@@ -1,8 +1,51 @@
 services:
+  mlflow:
+    image: ${PM_API_IMAGE:-predictive-maintenance-api:local}
+    restart: unless-stopped
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - sqlite:////app/mlflow/mlflow.db
+      - --artifacts-destination
+      - /app/mlflow/artifacts
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --workers
+      - "1"
+      - --allowed-hosts
+      - "mlflow,localhost,127.0.0.1"
+    volumes:
+      - ./artifacts/mlflow:/app/mlflow:ro
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/version')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   api:
     # Keep FastAPI private; the dashboard proxies browser requests through /api.
     ports: []
+    environment:
+      PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-mlflow_champion}
+      PM_MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
 
   dashboard:
     ports:
       - "80:3000"
+
+  # The AWS deployment uses the registry copy above for the approved champion.
+  worker:
+    environment:
+      PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-mlflow_champion}
+      PM_MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
