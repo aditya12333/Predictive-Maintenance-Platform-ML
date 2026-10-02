@@ -18,9 +18,12 @@ services:
       PM_EVENT_SINK: redpanda
       PM_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-none}
+      PM_APPROVED_MODEL_MANIFEST_PATH: ${STAGING_APPROVED_MODEL_MANIFEST_PATH:-}
       PM_MLFLOW_TRACKING_URI: ${STAGING_MLFLOW_TRACKING_URI:-http://mlflow:5000}
       PM_MLFLOW_REGISTERED_MODEL_NAME: ${STAGING_MLFLOW_REGISTERED_MODEL_NAME:-cmapss-fd001-rul}
       PM_MODEL_CACHE_ROOT: /app/artifacts/model-cache
+    volumes:
+      - ./artifacts:/app/artifacts:ro
     ports:
       - "127.0.0.1:${PM_API_PORT:-8000}:8000"
     depends_on:
@@ -41,11 +44,14 @@ services:
       PM_EVENT_SINK: redpanda
       PM_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-none}
+      PM_APPROVED_MODEL_MANIFEST_PATH: ${STAGING_APPROVED_MODEL_MANIFEST_PATH:-}
       PM_MLFLOW_TRACKING_URI: ${STAGING_MLFLOW_TRACKING_URI:-http://mlflow:5000}
       PM_MLFLOW_REGISTERED_MODEL_NAME: ${STAGING_MLFLOW_REGISTERED_MODEL_NAME:-cmapss-fd001-rul}
       PM_MODEL_CACHE_ROOT: /app/artifacts/model-cache
       PM_WORKER_METRICS_HOST: 0.0.0.0
       PM_WORKER_METRICS_PORT: 9101
+    volumes:
+      - ./artifacts:/app/artifacts:ro
     ports:
       - "127.0.0.1:${PM_WORKER_METRICS_PORT:-9101}:9101"
     depends_on:
