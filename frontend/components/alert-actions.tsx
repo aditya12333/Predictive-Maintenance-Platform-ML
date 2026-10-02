@@ -17,7 +17,7 @@ export function AlertActions({ alertId, initialState, initialVersion }: AlertAct
     setPending(action);
     setError(null);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
       const response = await fetch(`${baseUrl}/v1/alerts/${alertId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },

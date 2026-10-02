@@ -98,7 +98,7 @@ async function getApi<T>(path: string): Promise<T> {
   const baseUrl =
     typeof window === "undefined"
       ? (process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000")
-      : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000");
+      : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api");
   const response = await fetch(`${baseUrl}${path}`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Operational API returned ${response.status}`);
   return response.json() as Promise<T>;

@@ -1,0 +1,8 @@
+services:
+  api:
+    # Keep FastAPI private; the dashboard proxies browser requests through /api.
+    ports: []
+
+  dashboard:
+    ports:
+      - "80:3000"
