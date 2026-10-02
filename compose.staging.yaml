@@ -4,7 +4,7 @@ services:
     restart: "no"
     command: ["alembic", "upgrade", "head"]
     environment:
-      PM_DATABASE_URL: postgresql+psycopg://pm_app:pm_local_only@postgres:5432/predictive_maintenance
+      PM_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pm_app}:${POSTGRES_PASSWORD:-pm_local_only}@postgres:5432/${POSTGRES_DB:-predictive_maintenance}
     depends_on:
       postgres:
         condition: service_healthy
@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
     environment:
       PM_ENVIRONMENT: staging
-      PM_DATABASE_URL: postgresql+psycopg://pm_app:pm_local_only@postgres:5432/predictive_maintenance
+      PM_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pm_app}:${POSTGRES_PASSWORD:-pm_local_only}@postgres:5432/${POSTGRES_DB:-predictive_maintenance}
       PM_EVENT_SINK: redpanda
       PM_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-none}
@@ -37,7 +37,7 @@ services:
     command: ["pm-platform", "stream", "worker"]
     environment:
       PM_ENVIRONMENT: staging
-      PM_DATABASE_URL: postgresql+psycopg://pm_app:pm_local_only@postgres:5432/predictive_maintenance
+      PM_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pm_app}:${POSTGRES_PASSWORD:-pm_local_only}@postgres:5432/${POSTGRES_DB:-predictive_maintenance}
       PM_EVENT_SINK: redpanda
       PM_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-none}
