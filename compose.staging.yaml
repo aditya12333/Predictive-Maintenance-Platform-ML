@@ -22,7 +22,7 @@ services:
       PM_MLFLOW_REGISTERED_MODEL_NAME: ${STAGING_MLFLOW_REGISTERED_MODEL_NAME:-cmapss-fd001-rul}
       PM_MODEL_CACHE_ROOT: /app/artifacts/model-cache
     volumes:
-      - ./artifacts:/app/artifacts:ro
+      - ./artifacts:/app/artifacts
     ports:
       - "127.0.0.1:${PM_API_PORT:-8000}:8000"
     depends_on:
@@ -49,7 +49,7 @@ services:
       PM_WORKER_METRICS_HOST: 0.0.0.0
       PM_WORKER_METRICS_PORT: 9101
     volumes:
-      - ./artifacts:/app/artifacts:ro
+      - ./artifacts:/app/artifacts
     ports:
       - "127.0.0.1:${PM_WORKER_METRICS_PORT:-9101}:9101"
     depends_on:
