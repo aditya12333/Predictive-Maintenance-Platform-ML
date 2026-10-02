@@ -24,7 +24,7 @@ path from trusted historical data to quality-aware streaming inference.
 | 7 | Alerts, operational APIs, and fleet dashboard | Completed |
 | 8 | Airflow orchestration | Completed: local workflow verified |
 | 9 | Monitoring, retraining policy, and observability | Completed: local workflow verified |
-| 10 | CI/CD and cloud deployment | Planned |
+| 10 | CI/CD and cloud deployment | In progress: CI quality gates implemented |
 | 11 | Load testing, security review, and final delivery | Planned |
 
 <!-- 
@@ -147,6 +147,23 @@ The inference worker was restarted and verified against the new champion.
 - Airflow candidate retraining workflow with a manual approval sensor.
 - Audited MLflow approval and promotion, followed by champion-backed inference.
 
+### Continuous integration
+
+- GitHub Actions runs on every pull request and push to `main`, and can also be
+  started manually from the Actions tab.
+- Python dependencies are installed from the locked `uv.lock` file.
+- PostgreSQL migrations are applied and verified against a PostgreSQL 16 service.
+- Ruff, strict Mypy, the unit/integration test suite, and coverage output run as
+  required quality gates.
+- The Next.js application is installed with `npm ci` and checked with a production
+  build.
+- Docker Compose configuration is validated before changes are merged.
+- CI builds the production API/worker image and the standalone Next.js dashboard
+  image; publishing and deployment are intentionally separate release steps.
+- `compose.staging.yaml` defines the API, inference worker, dashboard, PostgreSQL,
+  and Redpanda service boundary for a staging-style deployment. The API uses the
+  internal `api:8000` address while browser actions use the host-facing API URL.
+
 ## Model results
 
 The four candidates used the same engine-level validation split and feature
@@ -238,7 +255,7 @@ failure date.
 | Operational storage | PostgreSQL, SQLAlchemy, Psycopg |
 | Schema migrations | Alembic |
 | Testing and quality | Pytest, Ruff, strict Mypy |
-| Local infrastructure | Docker Compose |
+| Local and production packaging | Docker, Docker Compose |
 | Experiment and model lifecycle | MLflow |
 | Workflow orchestration | Apache Airflow |
 | Metrics and monitoring | Prometheus, structured JSON logs |
@@ -340,6 +357,32 @@ npm run dev
 ```
 
 Open <http://localhost:3000> after starting the API at <http://127.0.0.1:8000>.
+
+### Run the staging-style containers locally
+
+Build the two production images first, then start the staging service boundary:
+
+```bash
+docker compose -f compose.yaml -f compose.staging.yaml up -d
+```
+
+The `migrate` one-shot service applies PostgreSQL migrations before the API and
+worker start. The dashboard is available at <http://localhost:3001>, the API at
+<http://127.0.0.1:8000>, and worker metrics at
+<http://127.0.0.1:9101/metrics>. Set `PM_INFERENCE_MODEL_SOURCE=mlflow_champion`
+and `PM_MLFLOW_TRACKING_URI` when the staging worker should load a registered
+model from an MLflow server.
+
+Run the staging smoke test after the services are healthy:
+
+```bash
+.venv/bin/python scripts/staging_smoke_test.py
+```
+
+Staging defaults to infrastructure-only inference so it cannot inherit local
+`.env` values accidentally. To enable champion-backed inference, set
+`STAGING_INFERENCE_MODEL_SOURCE=mlflow_champion` and
+`STAGING_MLFLOW_TRACKING_URI` to a hostname reachable from the containers.
 
 ### Dashboard screenshots
 
@@ -510,7 +553,7 @@ Live dashboard routes and alert workflows verified
 The repository does not yet include:
 
 - Failure-risk classification, alert thresholds, and classification metrics.
-- CI/CD or cloud deployment.
+- Cloud deployment or an automated production release workflow.
 
 These are shown as planned work rather than current system outputs.
 
@@ -518,5 +561,6 @@ These are shown as planned work rather than current system outputs.
 
 Phase 9 is complete for the local platform baseline, including monitoring-driven
 candidate retraining, human approval, promotion, and champion-backed inference.
-Production-scale drift thresholds, labelled outcomes, CI/CD, and cloud
-deployment remain future work. Phase 10 will address CI/CD and cloud deployment.
+The Phase 10 CI quality gate is now implemented in
+`.github/workflows/ci.yml`. Cloud deployment, environment-specific secrets,
+container image publishing, and production release approvals remain future work.

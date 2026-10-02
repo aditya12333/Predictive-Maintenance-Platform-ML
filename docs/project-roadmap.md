@@ -27,10 +27,21 @@ Completed:
   dashboard.
 - Phase 8: Local Airflow orchestration for repeatable training, candidate
   registration, serving benchmarks, manual approval gating, reruns, and recovery.
+- Phase 9: Monitoring, retraining policy, observability, and champion-backed
+  inference verification.
+- Phase 10 day 1: GitHub Actions CI quality gates for Python checks, PostgreSQL
+  migrations and integration tests, frontend production builds, and Compose
+  validation.
+- Phase 10 day 2: Production API/worker and standalone Next.js Docker images,
+  non-root runtime users, and CI image-build verification.
+- Phase 10 day 3: Staging-style Compose deployment with internal service
+  networking and a migration gate before API and worker startup.
+- Phase 10 day 4: Automated staging smoke test covering API readiness,
+  telemetry ingestion, equipment state, and worker metrics.
 
 Next:
 
-- Phase 9: monitoring and observability.
+- Phase 10 day 2: container images and a deployment target.
 
 The exact daily checkpoint is maintained in
 `docs/daily-progress.md`.
@@ -122,7 +133,8 @@ threshold calibration and deployment remain future work.
 Estimated duration: 5–8 focused days.
 
 - Production Docker images and environment configuration.
-- CI checks for tests, Ruff, Mypy, migrations, and frontend builds.
+- CI checks for tests, Ruff, Mypy, migrations, and frontend builds. **Day 1 is
+  complete in `.github/workflows/ci.yml`.**
 - Containerized deployment architecture.
 - Managed PostgreSQL, Kafka-compatible streaming, object storage, and secrets.
 - Staging deployment before production deployment.

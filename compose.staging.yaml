@@ -1,0 +1,68 @@
+services:
+  migrate:
+    image: ${PM_API_IMAGE:-predictive-maintenance-api:local}
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      PM_DATABASE_URL: postgresql+psycopg://pm_app:pm_local_only@postgres:5432/predictive_maintenance
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: ${PM_API_IMAGE:-predictive-maintenance-api:local}
+    restart: unless-stopped
+    environment:
+      PM_ENVIRONMENT: staging
+      PM_DATABASE_URL: postgresql+psycopg://pm_app:pm_local_only@postgres:5432/predictive_maintenance
+      PM_EVENT_SINK: redpanda
+      PM_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-none}
+      PM_MLFLOW_TRACKING_URI: ${STAGING_MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      PM_MLFLOW_REGISTERED_MODEL_NAME: ${STAGING_MLFLOW_REGISTERED_MODEL_NAME:-cmapss-fd001-rul}
+      PM_MODEL_CACHE_ROOT: /app/artifacts/model-cache
+    ports:
+      - "127.0.0.1:${PM_API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: ${PM_API_IMAGE:-predictive-maintenance-api:local}
+    restart: unless-stopped
+    command: ["pm-platform", "stream", "worker"]
+    environment:
+      PM_ENVIRONMENT: staging
+      PM_DATABASE_URL: postgresql+psycopg://pm_app:pm_local_only@postgres:5432/predictive_maintenance
+      PM_EVENT_SINK: redpanda
+      PM_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      PM_INFERENCE_MODEL_SOURCE: ${STAGING_INFERENCE_MODEL_SOURCE:-none}
+      PM_MLFLOW_TRACKING_URI: ${STAGING_MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      PM_MLFLOW_REGISTERED_MODEL_NAME: ${STAGING_MLFLOW_REGISTERED_MODEL_NAME:-cmapss-fd001-rul}
+      PM_MODEL_CACHE_ROOT: /app/artifacts/model-cache
+      PM_WORKER_METRICS_HOST: 0.0.0.0
+      PM_WORKER_METRICS_PORT: 9101
+    ports:
+      - "127.0.0.1:${PM_WORKER_METRICS_PORT:-9101}:9101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  dashboard:
+    image: ${PM_DASHBOARD_IMAGE:-predictive-maintenance-dashboard:local}
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:8000
+    ports:
+      - "127.0.0.1:${PM_DASHBOARD_PORT:-3001}:3000"
+    depends_on:
+      api:
+        condition: service_started

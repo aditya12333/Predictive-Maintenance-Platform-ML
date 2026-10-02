@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-quality:
+    name: Python checks and PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PM_DATABASE_URL: postgresql+psycopg://pm_app:pm_local_only@localhost:5432/predictive_maintenance
+
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_USER: pm_app
+          POSTGRES_PASSWORD: pm_local_only
+          POSTGRES_DB: predictive_maintenance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pm_app -d predictive_maintenance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.8.17"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Validate database migrations
+        run: |
+          uv run alembic upgrade head
+          uv run alembic current
+
+      - name: Run Ruff
+        run: uv run ruff check src tests infrastructure/postgres/migrations scripts
+
+      - name: Run strict Mypy
+        run: uv run mypy src
+
+      - name: Run test suite
+        run: uv run pytest --cov=predictive_maintenance --cov-report=term-missing
+
+  frontend-build:
+    name: Frontend production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  compose-validation:
+    name: Validate local container definition
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+
+  container-build:
+    name: Build production container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [python-quality, frontend-build, compose-validation]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build API and worker image
+        run: docker build --file Dockerfile.api --tag predictive-maintenance-api:ci .
+
+      - name: Build dashboard image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 \
+            --file frontend/Dockerfile \
+            --tag predictive-maintenance-dashboard:ci \
+            frontend
+
+      - name: Validate staging Compose configuration
+        run: docker compose -f compose.yaml -f compose.staging.yaml config --quiet
+
+      - name: Start staging services
+        run: docker compose -f compose.yaml -f compose.staging.yaml up -d
+
+      - name: Run staging smoke test
+        run: python scripts/staging_smoke_test.py
+
+      - name: Stop staging services
+        if: always()
+        run: docker compose -f compose.yaml -f compose.staging.yaml down --volumes
