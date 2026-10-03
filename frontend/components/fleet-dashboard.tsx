@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FleetTable } from "@/components/fleet-table";
 import { MonitoringPanel } from "@/components/monitoring-panel";
+import { DemoTelemetry } from "@/components/demo-telemetry";
 import { getFleetHealth, getMonitoringReport, type FleetHealth, type HealthStatus, type MonitoringReport } from "@/lib/api";
 
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone: HealthStatus }) {
@@ -47,6 +48,7 @@ export function FleetDashboard({ initialFleet, initialMonitoring }: { initialFle
         <SummaryCard label="Withheld" value={fleet.withheld_engines} tone="withheld" />
         <SummaryCard label="Unavailable" value={fleet.unavailable_engines} tone="unavailable" />
       </section>
+      <DemoTelemetry />
       <section className="table-panel">
         <div className="section-heading"><div><p className="eyebrow">Operational inventory</p><h2>Equipment overview</h2></div><div className="refresh-panel"><p className="timestamp">Updated {lastUpdated.toLocaleTimeString()}</p><button className="refresh-button" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Refreshing…" : "Refresh"}</button></div></div>
         {connectionError && <div className="connection-error" role="status">{connectionError}</div>}

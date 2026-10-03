@@ -119,3 +119,22 @@ export async function getPredictionHistory(engineId: number): Promise<Prediction
 export async function getMonitoringReport(): Promise<MonitoringReport> {
   return getApi<MonitoringReport>("/v1/monitoring/report");
 }
+
+export async function sendTelemetry(event: {
+  event_id: string;
+  engine_id: number;
+  cycle: number;
+  event_timestamp: string;
+  schema_version: string;
+  source_id: string;
+  measurements: Record<string, number>;
+}): Promise<{ event_id: string; status: string }> {
+  const baseUrl = typeof window === "undefined" ? (process.env.API_INTERNAL_URL ?? "http://127.0.0.1:8000") : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api");
+  const response = await fetch(`${baseUrl}/v1/telemetry`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  });
+  if (!response.ok) throw new Error(`Telemetry request failed (${response.status})`);
+  return response.json() as Promise<{ event_id: string; status: string }>;
+}
