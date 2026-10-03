@@ -155,7 +155,10 @@ jobs:
         run: docker compose -f compose.yaml -f compose.staging.yaml config --quiet
 
       - name: Start staging services
-        run: docker compose -f compose.yaml -f compose.staging.yaml up -d
+        run: |
+          PM_API_IMAGE=predictive-maintenance-api:ci \
+          PM_DASHBOARD_IMAGE=predictive-maintenance-dashboard:ci \
+          docker compose -f compose.yaml -f compose.staging.yaml up -d
 
       - name: Run staging smoke test
         run: python scripts/staging_smoke_test.py
