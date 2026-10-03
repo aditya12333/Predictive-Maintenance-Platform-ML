@@ -121,10 +121,35 @@ jobs:
       - name: Build dashboard image
         run: |
           docker build \
-            --build-arg NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=/api \
+            --build-arg API_INTERNAL_URL=http://api:8000 \
             --file frontend/Dockerfile \
             --tag predictive-maintenance-dashboard:ci \
             frontend
+
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        if: github.event_name != 'pull_request'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push images to Amazon ECR
+        if: github.event_name != 'pull_request'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker tag predictive-maintenance-api:ci "$ECR_REGISTRY/predictive-maintenance-api:$IMAGE_TAG"
+          docker tag predictive-maintenance-dashboard:ci "$ECR_REGISTRY/predictive-maintenance-dashboard:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/predictive-maintenance-api:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/predictive-maintenance-dashboard:$IMAGE_TAG"
 
       - name: Validate staging Compose configuration
         run: docker compose -f compose.yaml -f compose.staging.yaml config --quiet
