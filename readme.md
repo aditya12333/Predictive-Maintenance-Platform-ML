@@ -23,8 +23,8 @@ path from trusted historical data to quality-aware streaming inference.
 | 6 | Model packaging, approval gates, experiment tracking, and registry lifecycle | Completed |
 | 7 | Alerts, operational APIs, and fleet dashboard | Completed |
 | 8 | Airflow orchestration | Completed: local workflow verified |
-| 9 | Monitoring, retraining policy, and observability | Completed: local workflow verified |
-| 10 | CI/CD and cloud deployment | Completed|
+| 9 | Monitoring, retraining policy, and observability | Completed |
+| 10 | CI/CD and cloud deployment | Completed |
 <!--| 11 | Load testing, security review, and final delivery | Planned |-->
 
 <!-- 
@@ -38,10 +38,10 @@ candidate, benchmarks it, and waits at an explicit human-approval sensor. Approv
 and promotion remain separate audited operations and are never performed by the
 DAG automatically.
 
-Phase 9 now has a locally verified observability baseline: structured logs,
+Phase 9 now has a verified observability baseline: structured logs,
 correlation IDs, Prometheus metrics, a Prometheus server, operational summaries,
 scheduled PostgreSQL monitoring reports, a monitoring API endpoint, and a
-dashboard monitoring panel. The current report evaluates persisted quality and
+scheduled operational reports. The current report evaluates persisted quality and
 prediction rates, includes a delayed-outcome model-performance check, and can
 calculate PSI feature drift from newly persisted sensor measurements. These
 checks return `no_data` until enough reference/current telemetry or labelled
@@ -162,7 +162,8 @@ The inference worker was restarted and verified against the new champion.
   build.
 - Docker Compose configuration is validated before changes are merged.
 - CI builds the production API/worker image and the standalone Next.js dashboard
-  image; publishing and deployment are intentionally separate release steps.
+  image, publishes commit-tagged images to Amazon ECR, and deploys successful
+  `main` pushes to the configured Docker Compose host.
 - `compose.staging.yaml` defines the API, inference worker, dashboard, PostgreSQL,
   and Redpanda service boundary for a staging-style deployment. The API uses the
   internal `api:8000` address while browser actions use the host-facing API URL.
@@ -533,7 +534,7 @@ Phase 6 completion evidence:
 180 tests passed, including PostgreSQL integration tests
 Ruff passed
 Strict Mypy passed for 44 source files
-PostgreSQL migration: 0004_prediction_lineage (head)
+PostgreSQL migration: 0009_telemetry_measurements (head)
 MLflow champion: cmapss-fd001-rul version 5 / rul-airflow-monitoring-retraining-20261001T104503
 Real streaming path: FastAPI → Redpanda → champion inference → PostgreSQL
 ```
@@ -566,14 +567,7 @@ Live dashboard routes and alert workflows verified
 The repository does not yet include:
 
 - Failure-risk classification, alert thresholds, and classification metrics.
-- Cloud deployment or an automated production release workflow.
+- A production domain, HTTPS termination, and a full security review.
+- Automatic ingestion of delayed ground-truth outcomes from a maintenance system.
 
 These are shown as planned work rather than current system outputs.
-
-## Next phase
-
-Phase 9 is complete for the local platform baseline, including monitoring-driven
-candidate retraining, human approval, promotion, and champion-backed inference.
-The Phase 10 CI quality gate is now implemented in
-`.github/workflows/ci.yml`. Cloud deployment, environment-specific secrets,
-container image publishing, and production release approvals remain future work.
