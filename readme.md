@@ -24,7 +24,7 @@ path from trusted historical data to quality-aware streaming inference.
 | 7 | Alerts, operational APIs, and fleet dashboard | Completed |
 | 8 | Airflow orchestration | Completed: local workflow verified |
 | 9 | Monitoring, retraining policy, and observability | Completed: local workflow verified |
-| 10 | CI/CD and cloud deployment | In progress: CI quality gates implemented |
+| 10 | CI/CD and cloud deployment | Completed: CI, ECR publishing, and Lightsail deployment |
 | 11 | Load testing, security review, and final delivery | Planned |
 
 <!-- 
@@ -119,6 +119,8 @@ The inference worker was restarted and verified against the new champion.
 - Fleet health, equipment detail, prediction history, and alert-list API endpoints.
 - Version-checked alert acknowledgement, resolution, dismissal, and audit records.
 - Next.js fleet overview with health summaries, search, filters, sorting, and refresh.
+- Dashboard demo controls that generate FD001-like telemetry and stream sequential
+  cycles through the same production ingestion path used by external producers.
 - Equipment detail view with RUL history, last-valid prediction, quality issues, and alert actions.
 - Automatic dashboard refresh every 30 seconds with a last-known-good connection-error state.
 
@@ -141,7 +143,8 @@ The inference worker was restarted and verified against the new champion.
   persistence outcomes, prediction states, and consumer lag.
 - PostgreSQL monitoring reports for quality-issue rate, prediction availability,
   degraded/withheld rates, model-performance degradation, and feature PSI drift.
-- Monitoring report API and dashboard panel for operational checks.
+- Monitoring report API and scheduled operational checks; the dashboard monitoring
+  cards are currently disabled while the rest of the fleet view remains active.
 - Retraining policy requiring two consecutive failed monitoring windows before a
   candidate run is requested.
 - Airflow candidate retraining workflow with a manual approval sensor.
@@ -163,6 +166,10 @@ The inference worker was restarted and verified against the new champion.
 - `compose.staging.yaml` defines the API, inference worker, dashboard, PostgreSQL,
   and Redpanda service boundary for a staging-style deployment. The API uses the
   internal `api:8000` address while browser actions use the host-facing API URL.
+- Successful pushes to `main` publish commit-tagged API and dashboard images to
+  Amazon ECR and deploy those images to the configured Docker Compose host over
+  SSH. Pull requests run the quality and staging checks without publishing or
+  deploying.
 
 ## Model results
 
@@ -189,6 +196,12 @@ The initial LightGBM release `rul-lightgbm-v1` was MLflow model
 `cmapss-fd001-rul` version `1`. The current champion is the retrained release
 `rul-airflow-monitoring-retraining-20261001T104503`, MLflow version `5`. The
 provisional limits must be reviewed when domain-owner requirements are available.
+
+The row-level official-test comparison is generated at
+`artifacts/model-releases/<model-release>/official-test-predictions.csv`. It
+contains `engine_id`, `cycle`, `actual_rul`, `predicted_rul`, and
+`absolute_error` for each labeled test engine. Aggregate metrics remain in the
+release `evaluation.json` file.
 
 ## Runtime contracts
 
