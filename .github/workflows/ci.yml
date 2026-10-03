@@ -166,3 +166,52 @@ jobs:
       - name: Stop staging services
         if: always()
         run: docker compose -f compose.yaml -f compose.staging.yaml down --volumes
+
+  deploy-lightsail:
+    name: Deploy to Lightsail
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [container-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      IMAGE_TAG: ${{ github.sha }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+    steps:
+      - name: Configure SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/pm_lightsail_deploy
+          chmod 600 ~/.ssh/pm_lightsail_deploy
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Pull images and restart Lightsail services
+        run: |
+          ssh -i ~/.ssh/pm_lightsail_deploy "$DEPLOY_USER@$DEPLOY_HOST" \
+            "AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' AWS_DEFAULT_REGION='$AWS_DEFAULT_REGION' IMAGE_TAG='$IMAGE_TAG' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /home/ubuntu/predictive-maintenance-platform
+
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          registry="$account_id.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com"
+          aws ecr get-login-password --region "$AWS_DEFAULT_REGION" \
+            | docker login --username AWS --password-stdin "$registry"
+
+          docker pull "$registry/predictive-maintenance-api:$IMAGE_TAG"
+          docker pull "$registry/predictive-maintenance-dashboard:$IMAGE_TAG"
+
+          grep -v '^PM_API_IMAGE=' .env | grep -v '^PM_DASHBOARD_IMAGE=' > .env.deploy
+          printf 'PM_API_IMAGE=%s/predictive-maintenance-api:%s\n' "$registry" "$IMAGE_TAG" >> .env.deploy
+          printf 'PM_DASHBOARD_IMAGE=%s/predictive-maintenance-dashboard:%s\n' "$registry" "$IMAGE_TAG" >> .env.deploy
+          mv .env.deploy .env
+          chmod 600 .env
+
+          docker compose -f compose.yaml -f compose.staging.yaml -f compose.aws.yaml up -d --force-recreate
+          docker image prune -f
+          REMOTE
