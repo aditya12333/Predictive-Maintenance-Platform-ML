@@ -24,8 +24,8 @@ path from trusted historical data to quality-aware streaming inference.
 | 7 | Alerts, operational APIs, and fleet dashboard | Completed |
 | 8 | Airflow orchestration | Completed: local workflow verified |
 | 9 | Monitoring, retraining policy, and observability | Completed: local workflow verified |
-| 10 | CI/CD and cloud deployment | Completed: CI, ECR publishing, and Lightsail deployment |
-| 11 | Load testing, security review, and final delivery | Planned |
+| 10 | CI/CD and cloud deployment | Completed|
+<!--| 11 | Load testing, security review, and final delivery | Planned |-->
 
 <!-- 
 Phase 6 completed with an approved LightGBM registry version, an audited `champion`
