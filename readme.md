@@ -410,6 +410,12 @@ history, data-quality issues, and alert actions.
 
 ![Equipment detail dashboard](assets/screenshots/equipment-detail-dashboard.png)
 
+### Final architecture
+
+![End-to-end platform architecture](assets/architecture/final-architecture.png)
+
+Animated version: [final-architecture.gif](assets/architecture/final-architecture.gif)
+
 ## Inference Pipeline
 
 Our real-time inference flow is:
