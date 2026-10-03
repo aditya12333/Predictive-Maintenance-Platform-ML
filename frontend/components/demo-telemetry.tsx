@@ -5,8 +5,13 @@ import { sendTelemetry } from "@/lib/api";
 
 const DEMO_INTERVAL_MS = 5_000;
 
-function measurements(): Record<string, number> {
-  return Object.fromEntries(Array.from({ length: 21 }, (_, index) => [`sensor_${index + 1}`, 1.0]));
+function measurements(engineId: number, cycle: number): Record<string, number> {
+  // FD001-like operating ranges with a deterministic, slowly changing signal.
+  // This keeps the demo reproducible while avoiding an unrealistic all-ones vector.
+  const means = [518.67, 642.68, 1590.52, 1408.93, 14.62, 21.61, 553.37, 2388.10, 9065.24, 1.3, 47.54, 521.41, 2388.10, 8143.75, 8.442, 0.03, 393.21, 2388, 100, 38.816, 23.29];
+  const amplitudes = [0, 0.25, 3.5, 5.5, 0, 0.001, 0.45, 0.04, 14, 0, 0.16, 0.45, 0.04, 12, 0.025, 0, 0.8, 0, 0, 0.12, 0.07];
+  const phase = (engineId % 19) * 0.23 + cycle * 0.17;
+  return Object.fromEntries(means.map((mean, index) => [`sensor_${index + 1}`, Number((mean + amplitudes[index] * Math.sin(phase + index * 0.37)).toFixed(5))]));
 }
 
 export function DemoTelemetry() {
@@ -39,7 +44,7 @@ export function DemoTelemetry() {
         event_timestamp: new Date().toISOString(),
         schema_version: "telemetry-v1",
         source_id: "dashboard-demo",
-        measurements: measurements(),
+        measurements: measurements(parsedEngineId, nextCycle),
       });
       setMessage(`Cycle ${nextCycle} sent. The worker is processing Engine ${parsedEngineId}.`);
       setError(null);
@@ -78,7 +83,7 @@ export function DemoTelemetry() {
       <div>
         <p className="eyebrow">Demo controls</p>
         <h2>Stream test telemetry</h2>
-        <p className="demo-copy">Generate valid sensor events and watch the deployed worker score them.</p>
+        <p className="demo-copy">Generate FD001-like sensor events and watch the deployed worker score them.</p>
       </div>
       <div className="demo-controls">
         <label>Engine ID<input value={engineId} onChange={(event) => setEngineId(event.target.value)} disabled={running} inputMode="numeric" /></label>
